@@ -193,7 +193,8 @@ def step_product_inventory_stochastic_pipeline(
     total_week_cost = purchase_spend + holding_cost + unmet_penalty
 
     # Shift pipeline and push new order
-    new_pipeline = list(pipeline_arrivals[1:]) if len(pipeline_arrivals) > 1 else [0]
+    # Lead time equals len(pipeline_arrivals): drop this week's arrival, queue the new order.
+    new_pipeline = list(pipeline_arrivals[1:])
     new_pipeline.append(order_q1)
 
     new_state = ProductInventoryState(

@@ -81,3 +81,24 @@ def test_stochastic_pipeline_simulation():
     assert res.ending_on_hand == 7
     assert new_pipe == [10, 15]
 
+
+def test_pipeline_step_matches_standard_step_for_one_week_lead_time():
+    """With a one-week lead time the pipeline transition must equal the standard transition."""
+    from demandguard.simulation import (
+        ProductInventoryState,
+        step_product_inventory,
+        step_product_inventory_stochastic_pipeline,
+    )
+
+    std = ProductInventoryState(sku_id="A", on_hand_units=40, incoming_week_1_units=25)
+    pipe = ProductInventoryState(sku_id="A", on_hand_units=40, incoming_week_1_units=25)
+    pipeline = [25]
+    for order, demand in [(30, 50), (0, 90), (60, 10), (15, 0)]:
+        std, r_std = step_product_inventory(std, order, demand, "2020-01-06", 1000)
+        pipe, pipeline, r_pipe = step_product_inventory_stochastic_pipeline(
+            pipe, order, demand, "2020-01-06", pipeline, 1000
+        )
+        assert pipeline == [order]
+        assert r_pipe == r_std
+        assert pipe.on_hand_units == std.on_hand_units
+        assert pipe.incoming_week_1_units == std.incoming_week_1_units

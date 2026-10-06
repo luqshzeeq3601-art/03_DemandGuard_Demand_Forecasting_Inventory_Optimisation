@@ -187,38 +187,51 @@ def build_cohort_and_splits(config_path: str = "config/project.yaml") -> dict[st
     return manifest
 
 
-def generate_seasonal_cross_validation_splits(
+def generate_pre_holdout_validation_origins(
     all_weeks: list[Any],
-    min_train_weeks: int = 52,
+    holdout_start_index: int,
+    min_history_weeks: int = 60,
     horizon_weeks: int = 4,
+    n_folds: int = 4,
 ) -> list[dict[str, Any]]:
-    """Generate 4-fold seasonal cross-validation origins covering Spring, Summer, Autumn, and Winter peaks."""
-    n_weeks = len(all_weeks)
-    # Pick 4 evenly spaced origins across the second year of data
-    valid_range = n_weeks - min_train_weeks - horizon_weeks
-    step = max(1, valid_range // 4)
+    """Generate evenly spaced rolling validation origins whose targets end before the holdout.
 
-    seasonal_names = ["Spring_Peak", "Summer_Lull", "Autumn_Buildup", "Holiday_Surge"]
-    folds = []
+    Indices are 1-based like the split manifest: week index i is all_weeks[i - 1].
+    Every origin keeps at least `min_history_weeks` of history, and every target index is
+    strictly below `holdout_start_index`. Folds are labelled by origin date only; no seasonal
+    coverage is implied.
+    """
+    first_origin = min_history_weeks
+    last_origin = holdout_start_index - 1 - horizon_weeks
+    if last_origin < first_origin:
+        raise ValueError(
+            f"No valid origin: need {min_history_weeks} history weeks and {horizon_weeks} "
+            f"target weeks before holdout index {holdout_start_index}."
+        )
+    if n_folds < 1:
+        raise ValueError("n_folds must be at least 1.")
 
-    for i in range(4):
-        orig_idx = min_train_weeks + (i + 1) * step
-        if orig_idx + horizon_weeks > n_weeks:
-            orig_idx = n_weeks - horizon_weeks
-
-        orig_date = str(all_weeks[orig_idx - 1])
-        target_dates = [str(all_weeks[orig_idx - 1 + h]) for h in range(1, horizon_weeks + 1)]
-
-        folds.append(
-            {
-                "fold_id": i + 1,
-                "season_name": seasonal_names[i],
-                "origin_index": orig_idx,
-                "origin_date": orig_date,
-                "target_dates": target_dates,
-                "train_cutoff_date": orig_date,
-            }
+    if n_folds == 1:
+        origin_indices = [last_origin]
+    else:
+        span = last_origin - first_origin
+        origin_indices = sorted(
+            {last_origin - round(span * k / (n_folds - 1)) for k in range(n_folds)}
         )
 
+    folds = []
+    for fold_id, orig_idx in enumerate(origin_indices, start=1):
+        target_indices = [orig_idx + h for h in range(1, horizon_weeks + 1)]
+        if max(target_indices) >= holdout_start_index:
+            raise AssertionError("Validation target overlaps the holdout window.")
+        folds.append(
+            {
+                "fold_id": fold_id,
+                "origin_index": orig_idx,
+                "origin_week_start": str(all_weeks[orig_idx - 1]),
+                "training_label_cutoff": str(all_weeks[orig_idx - 1]),
+                "target_week_starts": [str(all_weeks[i - 1]) for i in target_indices],
+                "horizon_weeks": horizon_weeks,
+            }
+        )
     return folds
-

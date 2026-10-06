@@ -1,4 +1,4 @@
-policy,net_realized_cost_scu,fill_rate,total_demand,total_sales,total_unmet_units,total_purchase_spend_scu,total_holding_cost_scu,total_unmet_penalty_scu,terminal_value_scu,capacity_breaches,weeks_with_unmet
-P0_Rule,337964.86,0.6965993623804463,156206,108813,47393,107662.0,2342.8600000000006,236965.0,9005.0,0,12
-P1_MILP_Baseline,332830.56,0.7051713762595547,156206,110152,46054,109771.0,2179.5600000000004,230270.0,9390.0,0,12
-P2_MILP_Champion,364193.66000000003,0.6551604931948837,156206,102340,53866,101625.0,2461.66,269330.0,9223.0,0,12
+policy,net_realized_cost_scu,fill_rate,total_demand,total_sales,total_unmet_units,total_purchase_spend_scu,total_holding_cost_scu,total_unmet_penalty_scu,terminal_value_scu,capacity_breaches,weeks_with_unmet,solver_failures
+P0_Rule,337964.86,0.6965993623804463,156206,108813,47393,107662.0,2342.8600000000006,236965.0,9005.0,0,12,0
+P1_MILP_Baseline,335099.7,0.7015671613126256,156206,109589,46617,109291.0,2155.2,233085.0,9431.5,0,12,0
+P2_MILP_Champion,363667.4,0.6560311383685646,156206,102476,53730,101803.0,2458.4,268650.0,9244.0,0,12,0

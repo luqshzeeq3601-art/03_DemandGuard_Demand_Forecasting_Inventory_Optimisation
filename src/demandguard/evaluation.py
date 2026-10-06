@@ -604,6 +604,7 @@ def run_holdout_simulation(
     policies = ["P0_Rule", "P1_MILP_Baseline", "P2_MILP_Champion"]
     all_step_results = {p: [] for p in policies}
     states = {p: init_policy_states() for p in policies}
+    solver_failures = {p: 0 for p in policies}
 
     # Simulate week by week for 12 continuous weeks
     for w_idx, current_week_str in enumerate(holdout_weeks):
@@ -699,7 +700,7 @@ def run_holdout_simulation(
             )
             for sku in cohort_skus
         ]
-        _, p1_solved_orders, p1_traces = solve_inventory_milp(
+        p1_meta, p1_solved_orders, p1_traces = solve_inventory_milp(
             products=p1_products,
             forecast_matrix=p1_fc_matrix,
             weekly_budgets_scu=[weekly_budget] * 4,
@@ -716,12 +717,16 @@ def run_holdout_simulation(
             )
             for sku in cohort_skus
         ]
-        _, p2_solved_orders, p2_traces = solve_inventory_milp(
+        p2_meta, p2_solved_orders, p2_traces = solve_inventory_milp(
             products=p2_products,
             forecast_matrix=p2_fc_matrix,
             weekly_budgets_scu=[weekly_budget] * 4,
             warehouse_capacity_slots=warehouse_capacity,
         )
+
+        # Unproven solves place zero orders that week (D22/D23).
+        solver_failures["P1_MILP_Baseline"] += p1_meta["status"] != "Optimal"
+        solver_failures["P2_MILP_Champion"] += p2_meta["status"] != "Optimal"
 
         # Execute week step for each policy
         for sku in cohort_skus:
@@ -739,7 +744,7 @@ def run_holdout_simulation(
             all_step_results["P0_Rule"].append(res_p0)
 
             # P1 step
-            q1_p1 = p1_solved_orders[sku][0]
+            q1_p1 = p1_solved_orders.get(sku, [0])[0]
             st_p1, res_p1 = step_product_inventory(
                 state=states["P1_MILP_Baseline"][sku],
                 placed_order_q1=q1_p1,
@@ -751,7 +756,7 @@ def run_holdout_simulation(
             all_step_results["P1_MILP_Baseline"].append(res_p1)
 
             # P2 step
-            q1_p2 = p2_solved_orders[sku][0]
+            q1_p2 = p2_solved_orders.get(sku, [0])[0]
             st_p2, res_p2 = step_product_inventory(
                 state=states["P2_MILP_Champion"][sku],
                 placed_order_q1=q1_p2,
@@ -770,6 +775,7 @@ def run_holdout_simulation(
             final_states=states[pol],
         )
         sm["policy"] = pol
+        sm["solver_failures"] = solver_failures[pol]
         summaries.append(sm)
 
     summary_df = pd.DataFrame(summaries)
@@ -787,6 +793,7 @@ def run_holdout_simulation(
         "terminal_value_scu",
         "capacity_breaches",
         "weeks_with_unmet",
+        "solver_failures",
     ]
     summary_df = summary_df[[c for c in cols if c in summary_df.columns]]
 
@@ -880,6 +887,7 @@ def run_budget_stress_scenarios(
 
         states = {p: make_states() for p in policies}
         step_results = {p: [] for p in policies}
+        solver_failures = {p: 0 for p in policies}
 
         for w_idx, current_week_str in enumerate(holdout_weeks):
             current_week_date = pd.to_datetime(current_week_str).date()
@@ -939,12 +947,13 @@ def run_budget_stress_scenarios(
                 )
                 for sku in cohort_skus
             ]
-            _, p1_solved_orders, _ = solve_inventory_milp(
+            p1_meta, p1_solved_orders, _ = solve_inventory_milp(
                 products=p1_products,
                 forecast_matrix=p1_fc_matrix,
                 weekly_budgets_scu=[w_budget] * 4,
                 warehouse_capacity_slots=warehouse_capacity,
             )
+            solver_failures["P1_MILP_Baseline"] += p1_meta["status"] != "Optimal"
 
             p2_products = [
                 ProductInventoryInput(
@@ -955,12 +964,13 @@ def run_budget_stress_scenarios(
                 )
                 for sku in cohort_skus
             ]
-            _, p2_solved_orders, _ = solve_inventory_milp(
+            p2_meta, p2_solved_orders, _ = solve_inventory_milp(
                 products=p2_products,
                 forecast_matrix=p2_fc_matrix,
                 weekly_budgets_scu=[w_budget] * 4,
                 warehouse_capacity_slots=warehouse_capacity,
             )
+            solver_failures["P2_MILP_Champion"] += p2_meta["status"] != "Optimal"
 
             for sku in cohort_skus:
                 dem = realized_demands[sku]
@@ -976,7 +986,7 @@ def run_budget_stress_scenarios(
 
                 st_p1, res_p1 = step_product_inventory(
                     states["P1_MILP_Baseline"][sku],
-                    p1_solved_orders[sku][0],
+                    p1_solved_orders.get(sku, [0])[0],
                     dem,
                     current_week_str,
                     warehouse_capacity,
@@ -986,7 +996,7 @@ def run_budget_stress_scenarios(
 
                 st_p2, res_p2 = step_product_inventory(
                     states["P2_MILP_Champion"][sku],
-                    p2_solved_orders[sku][0],
+                    p2_solved_orders.get(sku, [0])[0],
                     dem,
                     current_week_str,
                     warehouse_capacity,
@@ -999,6 +1009,8 @@ def run_budget_stress_scenarios(
             sm["budget_multiplier"] = mult
             sm["weekly_budget_scu"] = w_budget
             sm["policy"] = pol
+            # Unproven solves place zero orders that week (D22/D23).
+            sm["solver_failures"] = solver_failures[pol]
             all_scenario_rows.append(sm)
 
     stress_df = pd.DataFrame(all_scenario_rows)
@@ -1353,7 +1365,7 @@ def run_k_factor_validation_grid() -> pd.DataFrame:
 
                 for s in cohort:
                     dem = int(panel_dict.get((s, t_date), 0))
-                    st, r = step_product_inventory(states[s], solved_orders[s][0], dem, t_str, cap)
+                    st, r = step_product_inventory(states[s], solved_orders.get(s, [0])[0], dem, t_str, cap)
                     states[s] = st
                     step_res.append(r)
 

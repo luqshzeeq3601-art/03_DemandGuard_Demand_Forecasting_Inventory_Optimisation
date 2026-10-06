@@ -1,0 +1,32 @@
+{
+  "protocol": "D18",
+  "candidates": [
+    "B2",
+    "M1_v01_fast",
+    "M2_l2",
+    "M2_tweedie",
+    "M2_q50",
+    "H_blend"
+  ],
+  "champion_model_id": "M2_q50",
+  "selection_reason": "Lowest pooled validation WAPE (0.5910).",
+  "validation_wape": 0.590982540814987,
+  "b2_validation_wape": 0.6721573297043926,
+  "relative_wape_reduction_vs_b2": 0.12076754251137205,
+  "simplicity_tolerance": 0.01,
+  "tree_params": {
+    "learning_rate": 0.08,
+    "num_leaves": 15,
+    "n_estimators": 60,
+    "min_child_samples": 10,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbose": -1
+  },
+  "recency_decay": 0.98,
+  "blend_ml_weight": 0.5,
+  "safety_stock_k": 1.0,
+  "final_training_cutoff_date": "2011-09-05",
+  "code_revision": "568d4ba+uncommitted",
+  "created_at_utc": "2026-10-06T04:19:28.227610+00:00"
+}

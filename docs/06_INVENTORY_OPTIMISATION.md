@@ -124,6 +124,7 @@ Relative cost reduction is `(P0_cost - proposed_cost)/P0_cost` only when P0_cost
 - Verify installed PuLP API and available CBC executable; pin both in reproducibility records.
 - Time limit: 10 seconds for a 30-product/four-week request.
 - v0.1 accepts only an optimal solver status, finite values, integer Q within 1e-6, balanced inventories and budget/capacity residuals within 1e-6.
+- "Optimal" means proven within a 0.1% relative MIP gap (`gapRel=0.001`, decision D23). A CBC stop on the time limit is reported as `TimeLimitFeasible` and is not executable: that week places zero orders and counts as a solver failure.
 - Independent validation reconstructs the constraints from inputs and Q; it must not trust a solver status alone.
 - Reconstruct fulfilment as min(available stock, forecast demand), shortage as max(0, forecast demand-available stock) and ending stock as max(0, available stock-forecast demand). Compare this trace to the solver values.
 - On failure, return diagnostics and no actionable orders. A fallback may be introduced later only with explicit status, validation and separate evaluation.
@@ -131,3 +132,17 @@ Relative cost reduction is `(P0_cost - proposed_cost)/P0_cost` only when P0_cost
 ## 9. Limits of the decision model
 
 Known costs, deterministic lead time, fractional forecast demand, single location and a fixed catalogue simplify the real problem. Current committed orders have a conservative capacity reservation; later quantities depend on the forecast and must be replanned. The reservation may leave otherwise usable future space idle. There are no actual warehouse or shortage labels in the selected benchmark.
+
+## 10. v0.2 exploratory policies (D18)
+
+Run over the same 12-week window, initial state, budget, capacity and k=1.0 as v0.1. All results are EXPLORATORY because the window was viewed in v0.1.
+
+| Policy | Forecast | Optimiser |
+| --- | --- | --- |
+| P0 | Trailing 4-week mean | Constrained rule |
+| P1 | B2 | Deterministic MILP |
+| P3 | Frozen v0.2 champion | Deterministic MILP (if the champion is B2, P3 equals P1 and is disclosed) |
+| P4 | M2_q50 P10/P50/P90 | Stochastic expected-cost MILP, weights 0.25/0.50/0.25 |
+| P5 | M2_q50 P50 | Deterministic MILP; safety stock z x (P90-P10)/2.563 from week-1 quantiles, z = k (D24) |
+
+The stochastic MILP keeps the budget, committed-order reservation and per-scenario pre-demand capacity constraints. A failed or non-optimal solve places zero orders that week and is counted as a solver failure. Under D23, P4 did not prove a solution within 10s in any of the 12 weeks, so it is not executable at this time limit.

@@ -158,3 +158,26 @@ def compute_recency_weights(
     # Normalise so mean weight is 1.0
     return weights / (np.mean(weights) + 1e-8)
 
+
+def build_inference_features(
+    history_df: pd.DataFrame,
+    as_of_week: datetime.date,
+    horizon_weeks: int = 4,
+    min_history_weeks: int = 60,
+) -> pd.DataFrame:
+    """Build forecast feature rows for every SKU in a weekly history ending at `as_of_week`.
+
+    Uses the same causal extractor as training, so any bundle can select its own feature list.
+    """
+    rows = []
+    for sku in sorted(history_df["sku_id"].unique()):
+        sub = history_df[history_df["sku_id"] == sku].sort_values("week_start")
+        sales = sub["units_sold"].to_numpy(dtype=float)
+        if len(sales) < min_history_weeks:
+            raise ValueError(
+                f"SKU {sku} has {len(sales)} weekly records; at least {min_history_weeks} "
+                "consecutive weeks required."
+            )
+        for h in range(1, horizon_weeks + 1):
+            rows.append(extract_causal_features_for_series(sales, as_of_week, h, sku))
+    return pd.DataFrame(rows)

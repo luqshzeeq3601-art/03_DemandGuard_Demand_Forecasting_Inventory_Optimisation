@@ -2,8 +2,8 @@
 
 ## 1. Status and rules
 
-- Current implementation status: **complete; 18/18 tasks complete**.
-- Next task: none (v0.1 local release complete).
+- Current implementation status: v0.1 complete (18/18). v0.2: see section 7. Several items are partial or blocked.
+- Next task: none scheduled. T22 (online bias correction) remains partial; see progress log for options.
 - Mark complete only after acceptance and verification pass; record evidence in ../docs/10_PROGRESS_LOG.md.
 - Estimated size: S=1-2 implementation files; M=3-5. Generated outputs and routine task/log updates are additional bookkeeping.
 - Commands are the planned interfaces in ../docs/08_OPERATIONS_AND_COMMANDS.md. Implement needed entry points before invoking them.
@@ -152,64 +152,51 @@
 
 **Final checkpoint G7:** local implementation is complete when T01-T18 and mandatory requirements are verified. Dashboard, cloud hosting, new datasets and public publishing remain separate follow-ups.
 
-## 7. v0.2 Improvement Tasks (T19–T30)
+## 7. v0.2 tasks (status corrected 6 Oct 2026)
 
-- [x] **T19 — Implement Tobit demand unbiasing and cold start priors**
-  - Acceptance: latent demand unbiasing for stockout weeks implemented; category cold start priors generated.
-  - Verify: `tests/test_data.py::test_estimate_censored_demand`, `test_compute_cold_start_priors` pass.
-  - Files: `src/demandguard/data.py`, `tests/test_data.py`.
+Commit `568d4ba` ticked T19-T30 on unit tests alone. Statuses below reflect end-to-end evidence; see decisions D17-D22.
 
-- [x] **T20 — Add annual seasonality, Fourier harmonics, and recency weights**
-  - Acceptance: lag-52, rolling-52, Fourier terms ($\sin/\cos$), momentum ratios, and sample weights added.
-  - Verify: `tests/test_features.py` passes without chronological leakage.
-  - Files: `src/demandguard/features.py`, `tests/test_features.py`.
+- [ ] **T19 — Demand uncensoring and cold-start priors: WITHDRAWN (D19)**
+  - The function leaked future data and had no availability signal to justify it. Removed with its tests.
 
-- [x] **T21 — Implement multi-quantile LightGBM and Tweedie regressors**
-  - Acceptance: $P10, P50, P90$ pinball loss models trained with verified monotonic predictions ($P10 \le P50 \le P90$).
-  - Verify: `tests/test_model.py::test_probabilistic_model_monotonicity` passes.
-  - Files: `src/demandguard/model.py`, `tests/test_model.py`.
+- [x] **T20 — Annual lag, Fourier and recency-weight features**
+  - Evidence: used by M2 candidates in `experiment-v02` (`reports/v02_validation.csv`).
 
-- [x] **T22 — Implement adaptive online bias correction and hybrid ensembling**
-  - Acceptance: dynamic ratio tracking ($\beta_t$) and hybrid forecast blending with B2 baseline.
-  - Verify: `tests/test_model.py::test_hybrid_adaptive_forecaster` passes.
-  - Files: `src/demandguard/model.py`, `tests/test_model.py`.
+- [x] **T21 — Quantile LightGBM and Tweedie candidates**
+  - Tweedie did not exist at `568d4ba`; it is now the declared candidate `M2_tweedie`. Evidence: `reports/v02_validation.csv`.
 
-- [x] **T23 — Implement multi-season 4-fold cross-validation scheme**
-  - Acceptance: 4 distinct seasonal folds (Spring, Summer, Fall, Holiday Peak) generated for multi-year tuning.
-  - Verify: `tests/test_splits.py` passes.
-  - Files: `src/demandguard/splits.py`, `tests/test_splits.py`.
+- [ ] **T22 — Hybrid blend and online bias correction: PARTIAL**
+  - Fixed 0.5 blend (`H_blend`) evaluated. Online bias correction is not evaluated: no unbiased bias signal exists inside a fold.
 
-- [x] **T24 — Implement stochastic MILP inventory optimization**
-  - Acceptance: expected cost minimization across quantile demand realizations with zero budget/capacity breaches.
-  - Verify: `tests/test_inventory.py::test_stochastic_inventory_milp` passes.
-  - Files: `src/demandguard/inventory.py`, `tests/test_inventory.py`.
+- [x] **T23 — Pre-holdout rolling validation origins (replaced, D20)**
+  - `generate_pre_holdout_validation_origins` plus `tests/test_splits.py::test_pre_holdout_validation_origins_never_touch_holdout`.
 
-- [x] **T25 — Deliver dynamic quantile-spread safety stock policy**
-  - Acceptance: safety stock buffer scales dynamically with forecast variance ($SS_{it} \propto P90 - P10$).
-  - Verify: `tests/test_policies.py::test_quantile_spread_safety_stock` passes.
-  - Files: `src/demandguard/policies.py`, `tests/test_policies.py`.
+- [x] **T24 — Stochastic MILP: EVALUATED (exploratory) — not executable at the 10s limit**
+  - Per-scenario pre-demand capacity added. Under D23 the P4 solve never proves a solution within 10s (12 of 12 weeks), so it places no orders. Evidence: `reports/v02_exploratory_simulation.csv`.
 
-- [x] **T26 — Implement stochastic lead-time inventory simulation harness**
-  - Acceptance: multi-period order pipeline queue and stochastic arrivals tracked accurately.
-  - Verify: `tests/test_simulation.py::test_stochastic_pipeline_simulation` passes.
-  - Files: `src/demandguard/simulation.py`, `tests/test_simulation.py`.
+- [x] **T25 — Quantile-spread safety stock: EVALUATED (exploratory, D24)**
+  - Policy P5: +25.1% cost vs P0 and worse than P3, because the P50 forecast is biased low.
 
-- [x] **T27 — Deliver asynchronous API job queue and polling endpoints**
-  - Acceptance: non-blocking `POST /reorder/async` and `GET /jobs/{id}` endpoints.
-  - Verify: `tests/test_api.py::test_api_async_reorder` passes.
-  - Files: `src/demandguard/api.py`, `tests/test_api.py`.
+- [x] **T26 — Multi-period pipeline simulation: FIXED and verified (D25)**
+  - Lead-time bug fixed (one-element pipeline became lead time 2). `tests/test_simulation.py::test_pipeline_step_matches_standard_step_for_one_week_lead_time` passes. Not needed by the lead-time-1 scenario.
 
-- [x] **T28 — Implement Population Stability Index (PSI) and distribution drift monitoring**
-  - Acceptance: PSI score and drift classification calculated for incoming transaction streams.
-  - Verify: `tests/test_monitoring.py::test_psi_drift_detection` passes.
-  - Files: `src/demandguard/monitoring.py`, `tests/test_monitoring.py`.
+- [x] **T27 — Async reorder endpoint**
+  - `tests/test_api.py::test_api_async_reorder`. Limitation: in-memory job store, lost on restart; runs the deterministic MILP.
 
-- [x] **T29 — Expand comprehensive test suite and verify 100% pass rate**
-  - Acceptance: 41 unit and integration tests passing across all modules; zero Ruff linting errors.
-  - Verify: `pytest` (41/41 passing), `ruff check` (clean).
-  - Files: `tests/`.
+- [x] **T28 — PSI/KS drift monitoring: INTEGRATED (D25)**
+  - `monitor` reports PSI and KS on SKUs shared with the reference. KS was missing at `568d4ba` and is now added. `tests/test_monitoring.py::test_monitoring_pipeline_reports_distribution_drift`.
 
-- [x] **T30 — Update documentation, progress log, decisions log, and git commit**
-  - Acceptance: D17 logged, progress log synchronized, comprehensive improvement plan delivered.
-  - Verify: `docs/09_DECISIONS_LOG.md`, `docs/10_PROGRESS_LOG.md`, `tasks/todo.md`.
+- [x] **T29 — Test suite**
+  - Includes selection-rule and fold-overlap tests added 6 Oct 2026.
 
+- [x] **T30 — Documentation correction**
+  - D17 corrected; D18-D22 added; specs 05 section 9 and 06 section 10 updated; this list re-statused.
+
+- [x] **T31 — Run the D18 v0.2 experiment end to end**
+  - Command: `python -m demandguard.cli experiment-v02`. Evidence: `reports/v02_experiment.md`, `artifacts/v02/selection_record.json`.
+
+- [x] **T32 — Resolve D22 (time-limited MILP reported as Optimal) (D23)**
+  - `gapRel=0.001`; `TimeLimitFeasible` is not executable. `simulate` run twice gave identical output (30s). Holdout simulation, k grid, stress scenarios, `report` and `experiment-v02` re-run. `tests/test_inventory.py::test_time_limited_solve_is_not_reported_optimal`.
+
+- [x] **T33 — Make the v0.2 champion servable (D25)**
+  - P50 bundle in `artifacts/v02/`. CLI and API share `build_inference_features`; v0.1 demo forecasts unchanged (max diff 0.0). `DEMANDGUARD_MODEL=v02` is whitelisted; `tests/test_api.py::test_api_model_selection_rejects_untrusted_names`.

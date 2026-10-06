@@ -21,10 +21,10 @@ flowchart LR
 | :--- | :--- | :--- | :--- | :--- | :---: | :--- |
 | **O1** | Trustworthy Weekly Data | Reconciled, leak-free panel from raw transactions | 100+ weeks, $\ge 10$ SKUs | 102 complete weeks, 30 SKUs, 9,013,090 panel units | ⚠️ **Mostly Met** | Panel is 100% verified. Gap of 358,320 units from clean data (9,371,410) is due to dropping partial boundary weeks (Dec 1–6, 2009 & Dec 5–9, 2011). |
 | **O2** | 4-Week Forecasts | Nonnegative, finite multi-step predictions | 100% coverage, breakdown reporting | 480 val + 360 holdout predictions | ⚠️ **Mostly Met** | Predictions exist and are valid; granular breakdowns by horizon and SKU provided in reports. |
-| **O3** | ML Forecast Superiority | LightGBM outperforms best simple baseline | $\ge 10\%$ WAPE reduction | Val: +7.76% (0.6200 vs 0.6722)<br>Holdout: -23.0% (0.7107 vs 0.5777) | ❌ **Missed (Stretch)** | **Missed**: LightGBM failed to beat the trailing 4-week mean on the 12-week test holdout. |
+| **O3** | ML Forecast Superiority | LightGBM outperforms best simple baseline | $\ge 10\%$ WAPE reduction | Val: +7.76% (0.6200 vs 0.6722)<br>Holdout: -23.0% (0.7107 vs 0.5777)<br>v0.2 M2_q50: val +12.1%; test (exploratory) -9.3% | ❌ **Missed (Stretch)** | **Missed**: LightGBM failed to beat the trailing 4-week mean on the 12-week test holdout. |
 | **O4** | Feasible Orders | Physical & financial constraints strictly respected | 0 breaches, integer orders | 0 capacity breaches, 0 budget violations across all 12 weeks | ✅ **Met** | Pre-demand bounds and committed-order arrival space protection ($I_0 + A_1 + Q_1 \le C$) verified. |
-| **O5** | Inventory Cost Reduction | Optimised replenishment reduces total supply chain cost | $\ge 5\%$ cost reduction, $\ge$ fill rate | P1: -1.52% cost (332.8k vs 338.0k SCU), +0.86% fill rate<br>P2: +7.76% cost | ❌ **Missed (Stretch)** | **Missed**: P1 saved 1.52% (5,134.30 SCU), short of the 5% target. P2 ML forecast increased cost due to under-forecasting. |
-| **O6** | Reproducible Engineering | Test suite, linting, CLI, API, container & CI | Passing tests, clean lint, verified contracts | 28 passing tests, clean Ruff lint, API & container verified | ⚠️ **Mostly Met** | Unit/integration tests pass. Local git initialized; live remote CI requires external runner. |
+| **O5** | Inventory Cost Reduction | Optimised replenishment reduces total supply chain cost | $\ge 5\%$ cost reduction, $\ge$ fill rate | P1: -0.85% (335.1k vs 338.0k SCU), fill 70.16% vs 69.66%<br>P2: +7.61% cost | ❌ **Missed (Stretch)** | **Missed**: re-measured with the reproducible solver (D23). The published 1.52% figure came from time-limited solves (D22). The ML-driven P2 increased cost. |
+| **O6** | Reproducible Engineering | Test suite, linting, CLI, API, container & CI | Passing tests, clean lint, verified contracts | 47 passing tests, clean Ruff lint, API & container verified | ⚠️ **Mostly Met** | Unit/integration tests pass. Local git initialized; live remote CI requires external runner. |
 | **O7** | Chat-Independent Docs | Specs, logs, runbooks, and decisions self-contained | Markdown source of truth | Comprehensive specs, logs, and runbooks | ✅ **Met** | Markdown documentation complete and fully self-contained. |
 
 ---
@@ -54,9 +54,9 @@ flowchart LR
 ### C. Final 12-Week Out-of-Sample Holdout Inventory Simulation (Continuous 12 Weeks)
 | Policy ID | Policy Description | Net Realised Cost (SCU) | Unit Fill Rate | Capacity Breaches | Cost Reduction vs P0 |
 | --- | --- | --- | --- | --- | --- |
-| **`P1`** | **PuLP MILP + Trailing 4-Week Mean (B2)** | **332,830.56** | **70.52%** | **0** | **-1.52% (5,134.30 SCU saved)** |
+| **`P1`** | **PuLP MILP + Trailing 4-Week Mean (B2)** | **335,099.70** | **70.16%** | **0** | **-0.85% (2,865.16 SCU saved)** |
 | `P0` | Constrained Heuristic Order-Up-To Rule | 337,964.86 | 69.66% | 0 | Operational Reference Baseline |
-| `P2` | PuLP MILP + LightGBM Champion Forecast | 364,193.66 | 65.52% | 0 | +7.76% (Cost Increased) |
+| `P2` | PuLP MILP + LightGBM Champion Forecast | 363,667.40 | 65.60% | 0 | +7.61% (Cost Increased) |
 
 ---
 
@@ -71,6 +71,51 @@ flowchart LR
    - Unmet demand penalties ($p=5.0$ SCU/unit) comprise ~70% of total supply chain costs. Because stock is constrained by budget, all policies experience similar stockout pressures.
 3. **Physical Feasibility**:
    - Zero warehouse capacity breaches occurred across all 12 weeks for all policies, proving the mathematical validity of the committed-order arrival reservation ($I_0 + A_1 + Q_1 \le C$).
+
+---
+
+## 3a. v0.2 experiment results (decision D18)
+
+Command: `python -m demandguard.cli experiment-v02`. Evidence: [reports/v02_experiment.md](reports/v02_experiment.md).
+
+**Pre-holdout validation (selection evidence, 480 predictions):**
+
+| Candidate | WAPE | Bias |
+| --- | --- | --- |
+| **M2_q50** (quantile median, v0.2 features) | **0.5910** | -0.167 |
+| M2_tweedie | 0.6149 | -0.041 |
+| M1_v01_fast | 0.6206 | -0.024 |
+| M2_l2 | 0.6302 | -0.010 |
+| H_blend (0.5 M2_l2 + 0.5 B2) | 0.6350 | +0.007 |
+| B2 | 0.6722 | +0.024 |
+
+M2_q50 was frozen as champion. It is 12.1% better than B2 on validation, which meets the O3 target **on validation only**.
+
+**Test window, EXPLORATORY (already viewed in v0.1; cannot support an O3/O5 claim):**
+
+| Candidate | WAPE | Bias |
+| --- | --- | --- |
+| B2 | **0.5777** | -0.152 |
+| H_blend | 0.5797 | -0.237 |
+| M2_q50 (champion) | 0.6316 | -0.421 |
+| M2_l2 | 0.6407 | -0.323 |
+| M2_tweedie | 0.6458 | -0.319 |
+| M1_v01_fast | 0.6866 | -0.268 |
+
+| Policy (12 weeks, EXPLORATORY) | Cost (SCU) | vs P0 | Fill rate | Unproven solves |
+| --- | --- | --- | --- | --- |
+| P0 rule | 337,965 | - | 69.7% | - |
+| P1 MILP + B2 | 335,100 | -0.8% | 70.2% | 0 of 12 |
+| P3 MILP + M2_q50 | 399,639 | +18.2% | 59.4% | 1 of 12 |
+| P4 stochastic MILP (P10/P50/P90) | 685,616 | +102.9% | 12.3% | 12 of 12 (time limit; no orders placed) |
+| P5 MILP + M2_q50 + quantile-spread safety stock | 422,770 | +25.1% | 55.4% | 1 of 12 |
+
+**Findings:**
+
+1. The v0.2 features improved validation error but did not fix the peak-season under-forecast. Every ML candidate still under-forecasts the test window by 27-42%. The quantile median is the worst: it targets the median, and demand is right-skewed.
+2. Only the B2 blend comes close to B2 on the test window. No candidate beats it.
+3. Policy results are now reproducible (D23). The stochastic optimiser cannot prove a solution within the 10s limit in any week, so under the spec it places no orders. Its earlier 360k figure came from executing unproven solutions. Quantile-spread safety stock (P5) did worse than the k x std rule (P3), because the P50 forecast itself is biased low.
+4. The P50 bundle is servable from `artifacts/v02/` (`DEMANDGUARD_MODEL=v02`, or `forecast --artifact-dir artifacts/v02`). The default remains the v0.1 champion.
 
 ---
 

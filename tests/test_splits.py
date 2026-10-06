@@ -5,7 +5,10 @@ import json
 import pandas as pd
 import yaml
 
-from demandguard.splits import build_cohort_and_splits
+from demandguard.splits import (
+    build_cohort_and_splits,
+    generate_pre_holdout_validation_origins,
+)
 
 
 def test_cohort_and_split_contract(tmp_path):
@@ -92,3 +95,24 @@ def test_cohort_and_split_contract(tmp_path):
     # Verify zero-filling in weekly_sales.parquet
     updated_panel = pd.read_parquet(panel_path)
     assert len(updated_panel) == 10 * 105  # 10 SKUs * 105 weeks
+
+
+def test_pre_holdout_validation_origins_never_touch_holdout():
+    """Rolling validation targets must end before the holdout and keep 60 history weeks."""
+    import datetime
+
+    import pytest
+
+    weeks = [datetime.date(2009, 12, 7) + datetime.timedelta(weeks=i) for i in range(102)]
+    holdout_start_index = 102 - 11  # manifest holdout: N-11 .. N
+    folds = generate_pre_holdout_validation_origins(weeks, holdout_start_index)
+
+    assert len(folds) == 4
+    assert folds[0]["origin_index"] >= 60
+    for fold in folds:
+        last_target = datetime.date.fromisoformat(fold["target_week_starts"][-1])
+        assert last_target < weeks[holdout_start_index - 1]
+    assert folds[-1]["origin_index"] + 4 == holdout_start_index - 1
+
+    with pytest.raises(ValueError):
+        generate_pre_holdout_validation_origins(weeks[:63], holdout_start_index=63)

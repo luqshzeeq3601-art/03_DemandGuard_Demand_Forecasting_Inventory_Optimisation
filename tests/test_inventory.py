@@ -128,3 +128,17 @@ def test_stochastic_inventory_milp():
     assert "SKU_STOCH" in solved_orders
     assert solved_orders["SKU_STOCH"][0] > 0
 
+
+def test_time_limited_solve_is_not_reported_optimal():
+    """PuLP returns status Optimal on a CBC time-limit stop; only sol_status reveals it (D22)."""
+    from types import SimpleNamespace
+
+    import pulp
+
+    from demandguard.inventory import _solver_status
+
+    proven = SimpleNamespace(sol_status=pulp.LpSolutionOptimal)
+    stopped = SimpleNamespace(sol_status=pulp.LpSolutionIntegerFeasible)
+    assert _solver_status(proven, pulp.LpStatusOptimal) == "Optimal"
+    assert _solver_status(stopped, pulp.LpStatusOptimal) == "TimeLimitFeasible"
+    assert _solver_status(stopped, pulp.LpStatusNotSolved) == "Not Solved"

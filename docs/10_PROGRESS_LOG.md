@@ -2,10 +2,10 @@
 
 ## 1. Current state
 
-- Phase: **v0.1 Local Release Complete (Remediated & Verified)**.
+- Phase: **v0.1 released; v0.2 evaluated (exploratory); D22 resolved by D23**.
 - Planning files: verified and updated.
 - Implementation tasks completed: **18 of 18 (100%)**.
-- Next task: None. Local v0.1 milestone verified, audited, and closed.
+- Next task: none scheduled (T22 online bias correction remains partial).
 - Dataset acquired and verified: Yes (`data/raw/online_retail_II.xlsx`, SHA-256: `bcbe73b35f5b7babf197fb0cb983a11f5d9ff929078d4aa53d171b1f2df2e980`).
 - Forecast trained/evaluated: Yes (Validation WAPE: 0.6200 for LightGBM vs 0.6722 for B2; Holdout WAPE: 0.5777 for B2 vs 0.7107 for LightGBM).
 - Inventory simulation measured: Yes (12-week holdout continuous simulation: P1 MILP baseline achieved lowest cost 332,830.56 SCU, 70.52% fill rate, 0 capacity breaches).
@@ -38,20 +38,49 @@
 
 ---
 
-## 3. v0.2 Improvement Tasks Execution and Evidence Log (T19–T30)
+## 3. v0.2 tasks: corrected status and evidence (6 Oct 2026)
 
-| Task | Module / Action | Result & Status | Verification Evidence |
+Commit `568d4ba` logged T19-T30 as SUCCESS on unit tests alone and claimed Tweedie support and an improvement-plan file that did not exist. The rows below replace that log. Decisions: D17-D22.
+
+| Task | Status | Command / evidence | Note |
 | :--- | :--- | :--- | :--- |
-| **T19** | `src/demandguard/data.py` | **SUCCESS**: Tobit demand uncensoring heuristic and cold start priors implemented. | `tests/test_data.py::test_estimate_censored_demand`, `test_compute_cold_start_priors` |
-| **T20** | `src/demandguard/features.py` | **SUCCESS**: 52-week lag, rolling 52, annual Fourier harmonics ($\sin/\cos$), momentum ratios, and recency exponential sample weights added. | `tests/test_features.py` |
-| **T21** | `src/demandguard/model.py` | **SUCCESS**: `DemandGuardProbabilisticModel` multi-quantile ($P10, P50, P90$) regressors and Tweedie support implemented. | `tests/test_model.py::test_probabilistic_model_monotonicity` |
-| **T22** | `src/demandguard/model.py` | **SUCCESS**: `HybridAdaptiveForecaster` combining LightGBM with B2 moving averages and online bias correction ($\beta_t$) implemented. | `tests/test_model.py::test_hybrid_adaptive_forecaster` |
-| **T23** | `src/demandguard/splits.py` | **SUCCESS**: 4-fold multi-season cross-validation generator covering Spring, Summer, Autumn, and Winter peaks added. | `tests/test_splits.py` |
-| **T24** | `src/demandguard/inventory.py` | **SUCCESS**: `solve_stochastic_inventory_milp` implemented minimizing expected costs across quantile scenarios. | `tests/test_inventory.py::test_stochastic_inventory_milp` |
-| **T25** | `src/demandguard/policies.py` | **SUCCESS**: Dynamic quantile-spread safety stock policy ($SS_{it} \propto P90 - P10$) implemented. | `tests/test_policies.py::test_quantile_spread_safety_stock` |
-| **T26** | `src/demandguard/simulation.py` | **SUCCESS**: Multi-week pipeline and stochastic lead-time inventory simulation added. | `tests/test_simulation.py::test_stochastic_pipeline_simulation` |
-| **T27** | `src/demandguard/api.py` | **SUCCESS**: Asynchronous background optimization job execution (`POST /reorder/async`) and polling (`GET /jobs/{id}`) added. | `tests/test_api.py::test_api_async_reorder` |
-| **T28** | `src/demandguard/monitoring.py` | **SUCCESS**: Population Stability Index (PSI) and Kolmogorov-Smirnov distribution drift detection implemented. | `tests/test_monitoring.py::test_psi_drift_detection` |
-| **T29** | `tests/` | **SUCCESS**: Expanded test suite to 41/41 unit and integration tests passing with 100% success rate. | `pytest` (41 passed, 0 failures), `ruff check` (clean) |
-| **T30** | `docs/`, `tasks/todo.md` | **SUCCESS**: Decisions log updated (D17), progress log updated, todo list synced, improvement plan artifact delivered. | `docs/09_DECISIONS_LOG.md`, `docs/10_PROGRESS_LOG.md`, `tasks/todo.md` |
+| **T19** | WITHDRAWN | Function and tests removed | Leaked future data; no stockout signal (D19) |
+| **T20** | Evaluated | `experiment-v02` -> `reports/v02_validation.csv` | Used by M2 candidates |
+| **T21** | Evaluated | same | Tweedie added as `M2_tweedie` |
+| **T22** | Partial | same | Fixed blend evaluated; online bias correction not |
+| **T23** | Replaced | `pytest tests/test_splits.py` | Old generator overlapped holdout (D20) |
+| **T24** | Exploratory, blocked | `reports/v02_exploratory_simulation.csv` | Pre-demand capacity added; D22 open |
+| **T25** | Not evaluated | - | Not used by any policy |
+| **T26** | Not evaluated | - | Not used by any simulation |
+| **T27** | Done | `tests/test_api.py::test_api_async_reorder` | In-memory jobs only |
+| **T28** | Not integrated | `tests/test_monitoring.py` | Not called by `monitor` |
+| **T29** | Done | `pytest` (43 passed), `ruff check src tests` clean | Adds selection-rule and fold-overlap tests |
+| **T30** | Done | Docs 05, 06, 08, 09, README, model card, todo | Corrections recorded |
+| **T31** | Done | `python -m demandguard.cli experiment-v02` (about 6 min, exit 0, run twice) | See below |
 
+### T31 results
+
+- Validation (pre-holdout, frozen before test scoring): champion **M2_q50** WAPE 0.5910 vs B2 0.6722, a 12.1% reduction. Forecast metrics were identical across both runs.
+- Test window (EXPLORATORY): B2 0.5777, H_blend 0.5797, M2_q50 0.6316 (bias -42%). No candidate beats B2.
+- Simulation (EXPLORATORY), run 2: P0 337,965; P1 333,580 (-1.3%); P3 399,109 (+18.1%); P4 360,360 (+6.6%). Zero capacity breaches. P1 cost was 340,164 in run 1 (D22).
+- Evidence: `reports/v02_experiment.md`, `reports/v02_validation.csv`, `reports/v02_exploratory_holdout_forecast.csv`, `reports/v02_exploratory_simulation.csv`, `artifacts/v02/selection_record.json`.
+
+### Blocker found
+
+- **D22**: 20 of 24 v0.1 MILP solves hit the 10s CBC limit but report `Optimal`. Three runs of the unchanged v0.1 `simulate` gave P1 costs of 332,831, 340,164 and 333,580, so the published 1.52% P1 saving is not reproducible.
+- Next task: **T32**, resolve D22, then re-measure every policy.
+
+## 4. Session: 6 Oct 2026, T24-T28 and T32-T33 completion
+
+| Task | Command | Result | Evidence |
+| :--- | :--- | :--- | :--- |
+| **T32** | Captured 24 real holdout MILP inputs; benchmarked `gapRel` 1e-4 and 1e-3 twice each | 1e-3: max 7s per solve; identical objectives and orders across runs | `src/demandguard/inventory.py` (D23) |
+| **T32** | `python -m demandguard.cli simulate` twice | Identical CSVs, 30s each. P0 337,964.86; P1 335,099.70 (-0.85%); P2 363,667.40 (+7.61%); 0 breaches; 0 unproven solves | `reports/holdout_simulation_metrics.csv` |
+| **T32** | `run_k_factor_validation_grid`, `run_budget_stress_scenarios`, `report` | k=1.0 still lowest validation cost (55,684.92). Stress 0.6x P2 had 3 unproven solves (zero orders those weeks) | `reports/k_factor_validation.csv`, `reports/inventory_stress_scenarios.csv`, `reports/inventory_simulation_report.md` |
+| **T24/T25** | `python -m demandguard.cli experiment-v02` (182s, exit 0) | P1 335,100 (-0.8%); P3 399,639 (+18.2%); P4 not executable (12/12 time-limited); P5 422,770 (+25.1%). Forecast metrics unchanged | `reports/v02_experiment.md`, `reports/v02_exploratory_simulation.csv` |
+| **T26** | `pytest tests/test_simulation.py` | Lead-time bug fixed; equivalence with the standard step verified | D25 |
+| **T28** | `pytest tests/test_monitoring.py` | PSI and KS reported by `monitor` | D25 |
+| **T33** | CLI `forecast --artifact-dir artifacts/v02`; API `/forecast` and `/ready` with `DEMANDGUARD_MODEL=v02` | 8 predictions, `model_version` M2_q50, ready; untrusted name rejected | D25 |
+| All | `pytest` / `ruff check src tests` | 47 passed / clean | - |
+
+Remaining: T22 online bias correction is unevaluated, because no unbiased bias signal exists inside a fold. The data has no unseen holdout left for an O3/O5 claim (D18).

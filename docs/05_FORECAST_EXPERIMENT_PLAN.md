@@ -90,24 +90,32 @@ The final report must state that twelve weeks and one catalogue provide limited 
 
 Do not refit on all data while labelling the resulting artifact with holdout scores from a different model. A later full-history refit requires a new version and explicit provenance.
 
-## 9. v0.2 Scientific Roadmap (Unconsumed Evaluation Protocol)
+## 9. v0.2 evaluation protocol (D18)
 
-The v0.1 test holdout (Sept–Nov 2011 Q4 holiday ramp-up) proved that LightGBM trained on summer data suffered from -27.4% under-forecasting bias. Because that test split has been evaluated, it is scientifically consumed. v0.2 introduces a pre-registered evaluation protocol and architectural improvements:
+The v0.1 champion under-forecast the 2011-09-12 to 2011-11-28 test window by 27.4%. That window has been viewed, and the dataset ends 2011-11-28, so v0.2 has no unseen holdout.
 
-### A. Temporal Evaluation Protocol
-- **Cross-Year Holiday Validation**: Split the first year into training (2009-12 to 2010-08) and validation covering the 2010 Q4 holiday peak (2010-09 to 2010-11).
-- **Holdout Freeze**: Model candidates must prove holiday generalisation on the 2010 peak before evaluation on a reserved 2011 holdout window.
+### A. Temporal protocol
 
-### B. Feature Architecture
-- **52-Week Seasonal Lags**: Incorporate `lag_51` and `lag_52` with seasonal interaction terms.
-- **Cyclical Calendar Encodings**: $\sin(2\pi \cdot \text{week} / 52)$ and $\cos(2\pi \cdot \text{week} / 52)$.
-- **Short-Term Momentum**: Ratio of 2-week rolling mean to 8-week rolling mean to detect rapid trend acceleration.
+- A 2010 Q4 validation fold is not possible. The 60-week history contract puts the first origin at 2011-01-24, and Q4 2010 also lies inside the cohort-selection prefix.
+- Selection uses the four manifest validation origins (2011-05-16, 2011-06-13, 2011-07-11, 2011-08-08). Their last target is the c0 cutoff (2011-09-05); the holdout starts 2011-09-12.
+- `generate_pre_holdout_validation_origins` (D20) is the only fold generator for new experiments. It asserts every target precedes the holdout.
+- The selection record is written before any test-window scoring. Test-window results are labelled EXPLORATORY and cannot support an O3/O5 claim.
 
-### C. Objective & Loss Functions
-- **Tweedie Regression ($\rho=1.5$) / Poisson Loss**: Better handles right-skewed count data and penalizes under-forecasting.
-- **Exponential Recency Sample Weighting**: Decay factor $\lambda=0.98^{\Delta t}$ to prioritize recent sales trajectory over distant history.
+### B. Declared candidates (fixed before running)
 
-### D. Hybrid Forecast & Scenario Calibration
-- **Blended Forecast**: $\hat{y} = \alpha \hat{y}_{\text{ML}} + (1-\alpha) \hat{y}_{\text{B2}}$, combining ML's cross-product structure with trailing mean's trend adaptability.
-- **Calibrated Scenario Budgets**: Test $1.2\times$ baseline budget so unmet penalties do not overwhelm policy differences.
+| ID | Features | Objective | Notes |
+| --- | --- | --- | --- |
+| B2 | - | Trailing 4-week mean | Reference |
+| M1_v01_fast | v0.1 set | L2 | lr 0.08, 15 leaves, 60 trees, min child 10 |
+| M2_l2 | v0.1 set + lag_52, rolling_mean_52, momentum_4_13, Fourier week-of-year | L2 | Same tree settings; recency weights 0.98^weeks |
+| M2_tweedie | as M2_l2 | Tweedie, variance power 1.2 | Same tree settings and weights |
+| M2_q50 | as M2_l2 | Quantile 0.5 | P10/P90 fitted alongside for the stochastic policy |
+| H_blend | - | 0.5 x M2_l2 + 0.5 x B2 | Fixed weight, no bias correction (no unbiased bias signal exists inside a fold) |
 
+Selection: lowest pooled validation WAPE; a simpler candidate within 1% relative WAPE wins. Simplicity order: B2, M1_v01_fast, M2_l2, M2_tweedie, M2_q50, H_blend.
+
+### C. Outputs
+
+- `reports/v02_validation.csv`, `artifacts/v02/selection_record.json`.
+- `reports/v02_exploratory_holdout_forecast.csv`, `reports/v02_exploratory_simulation.csv`, `reports/v02_experiment.md`.
+- Command: `python -m demandguard.cli experiment-v02`.

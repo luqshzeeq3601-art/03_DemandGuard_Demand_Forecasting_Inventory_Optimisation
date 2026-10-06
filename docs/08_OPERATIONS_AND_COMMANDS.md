@@ -49,6 +49,16 @@ py -3.12 -m venv .venv
 
 `select` writes a frozen selection record, including champion, safety coefficient and hashes, without test outcomes. `evaluate --split test` refuses an unfrozen selection. `simulate --split test` reuses the frozen artifact/settings; it cannot silently fit another model. Selection/reporting details are in the experiment and inventory specifications.
 
+### v0.2 experiment (T31, decision D18)
+
+```powershell
+.\.venv\Scripts\python.exe -m demandguard.cli experiment-v02 --config config/project.yaml --scenario config/scenario.yaml
+```
+
+This command selects among six declared candidates on pre-holdout origins and writes `artifacts/v02/selection_record.json` before it scores the viewed test window. It then writes `reports/v02_*` files labelled EXPLORATORY. It takes about 3 minutes on a laptop CPU. Results are reproducible run to run (D23). The v0.2 champion bundle is written to `artifacts/v02/`.
+
+To serve it: `$env:DEMANDGUARD_MODEL = "v02"` before starting the API, or `forecast --artifact-dir artifacts/v02` in the CLI. Only the names `champion` (default, v0.1) and `v02` are accepted (D25).
+
 ## 5. Tests and quality gates
 
 ```powershell

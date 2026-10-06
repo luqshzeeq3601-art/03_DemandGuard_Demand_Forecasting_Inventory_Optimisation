@@ -13,6 +13,26 @@ from demandguard.contracts import (
     ReorderWorklistRow,
 )
 
+# Relative MIP gap at which CBC may stop and report a proven solution (decision D23).
+DEFAULT_RELATIVE_GAP = 0.001
+
+
+def _solver_status(prob: pulp.LpProblem, status_code: int) -> str:
+    """Map PuLP results to a status that separates proven solutions from time-limit stops.
+
+    PuLP reports status ``Optimal`` when CBC stops on the time limit with an incumbent; only
+    ``sol_status`` distinguishes that case (decision D22).
+    """
+    status_str = pulp.LpStatus[status_code]
+    if status_str == "Optimal" and prob.sol_status == pulp.LpSolutionIntegerFeasible:
+        return "TimeLimitFeasible"
+    return status_str
+
+
+def _value(var: pulp.LpVariable) -> float:
+    val = pulp.value(var)
+    return float(val) if val is not None else 0.0
+
 
 def solve_inventory_milp(
     products: list[ProductInventoryInput],
@@ -21,8 +41,12 @@ def solve_inventory_milp(
     warehouse_capacity_slots: int,
     terminal_value_fraction: float = 0.5,
     solver_time_limit_seconds: int = 10,
+    solver_relative_gap: float = DEFAULT_RELATIVE_GAP,
 ) -> tuple[dict[str, Any], dict[str, list[int]], dict[str, Any]]:
-    """Build and solve 4-week MILP inventory optimization problem using PuLP."""
+    """Build and solve 4-week MILP inventory optimization problem using PuLP.
+
+    Orders are returned only when CBC proves the solution within ``solver_relative_gap``.
+    """
     start_time = time.perf_counter()
 
     # Initial consistency check: check starting on hand + arrival week 1 <= capacity
@@ -153,16 +177,19 @@ def solve_inventory_milp(
     prob += committed_protection <= warehouse_capacity_slots, "CommittedOrderCapacityProtection"
 
     # Solve with time limit
-    solver = pulp.PULP_CBC_CMD(msg=False, timeLimit=solver_time_limit_seconds)
+    solver = pulp.PULP_CBC_CMD(
+        msg=False, timeLimit=solver_time_limit_seconds, gapRel=solver_relative_gap
+    )
     status_code = prob.solve(solver)
     runtime = time.perf_counter() - start_time
-    status_str = pulp.LpStatus[status_code]
+    status_str = _solver_status(prob, status_code)
     solver_name = prob.solver.name if prob.solver else "CBC"
 
     raw_results = {
         "status": status_str,
         "solver_name": solver_name,
         "runtime_seconds": runtime,
+        "relative_gap": solver_relative_gap,
         "objective": pulp.value(prob.objective) if status_str == "Optimal" else None,
     }
 
@@ -175,12 +202,12 @@ def solve_inventory_milp(
             sku = p.sku_id
             q_list = []
             for t in range(1, 5):
-                q_val = int(round(pulp.value(Q[(sku, t)])))
+                q_val = int(round(_value(Q[(sku, t)])))
                 q_list.append(q_val)
-                solved_traces["I"][(sku, t)] = float(pulp.value(I[(sku, t)]))
-                solved_traces["U"][(sku, t)] = float(pulp.value(U[(sku, t)]))
-                solved_traces["Z"][(sku, t)] = float(pulp.value(Z[(sku, t)]))
-                solved_traces["b"][(sku, t)] = float(pulp.value(b[(sku, t)]))
+                solved_traces["I"][(sku, t)] = _value(I[(sku, t)])
+                solved_traces["U"][(sku, t)] = _value(U[(sku, t)])
+                solved_traces["Z"][(sku, t)] = _value(Z[(sku, t)])
+                solved_traces["b"][(sku, t)] = _value(b[(sku, t)])
             solved_orders[sku] = q_list
 
     return raw_results, solved_orders, solved_traces
@@ -341,6 +368,7 @@ def solve_stochastic_inventory_milp(
     scenario_weights: dict[str, float] | None = None,
     terminal_value_fraction: float = 0.5,
     solver_time_limit_seconds: int = 10,
+    solver_relative_gap: float = DEFAULT_RELATIVE_GAP,
 ) -> tuple[dict[str, Any], dict[str, list[int]], dict[str, Any]]:
     """Build and solve multi-scenario stochastic MILP minimizing expected holding and unmet penalties."""
     start_time = time.perf_counter()
@@ -420,6 +448,22 @@ def solve_stochastic_inventory_milp(
         B_t = weekly_budgets_scu[t - 1]
         prob += pulp.lpSum(p.unit_purchase_cost_scu * Q[(p.sku_id, t)] for p in products) <= B_t
 
+    # Pre-demand capacity per scenario: stock before demand plus that week's arrival
+    for s in scenarios:
+        for t in range(1, 5):
+            prob += (
+                pulp.lpSum(
+                    p.storage_slots_per_unit
+                    * (
+                        (p.on_hand_units + p.incoming_week_1_units)
+                        if t == 1
+                        else (I[(p.sku_id, t - 1, s)] + Q[(p.sku_id, t - 1)])
+                    )
+                    for p in products
+                )
+                <= warehouse_capacity_slots
+            )
+
     # Committed order reservation
     prob += (
         pulp.lpSum(
@@ -429,22 +473,25 @@ def solve_stochastic_inventory_milp(
         <= warehouse_capacity_slots
     )
 
-    solver = pulp.PULP_CBC_CMD(timeLimit=solver_time_limit_seconds, msg=False)
-    prob.solve(solver)
+    solver = pulp.PULP_CBC_CMD(
+        timeLimit=solver_time_limit_seconds, gapRel=solver_relative_gap, msg=False
+    )
+    status_code = prob.solve(solver)
     runtime = time.perf_counter() - start_time
 
-    status_str = pulp.LpStatus.get(prob.status, "UNKNOWN")
+    status_str = _solver_status(prob, status_code)
     solved_orders: dict[str, list[int]] = {}
-    if status_str in ("Optimal", "Feasible"):
+    if status_str == "Optimal":
         for p in products:
             sku = p.sku_id
-            orders = [int(round(pulp.value(Q[(sku, t)]) or 0)) for t in range(1, 5)]
+            orders = [int(round(_value(Q[(sku, t)]))) for t in range(1, 5)]
             solved_orders[sku] = orders
 
     solver_meta = {
         "status": status_str,
         "runtime_seconds": runtime,
-        "objective": pulp.value(prob.objective) if prob.objective else None,
+        "relative_gap": solver_relative_gap,
+        "objective": pulp.value(prob.objective) if status_str == "Optimal" else None,
         "solver_name": "PULP_CBC_CMD",
     }
     return solver_meta, solved_orders, {}

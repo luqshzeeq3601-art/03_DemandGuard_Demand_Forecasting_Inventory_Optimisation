@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import datetime
 import sys
 from pathlib import Path
 
@@ -12,6 +11,7 @@ import pandas as pd
 import yaml
 
 from demandguard.contracts import ProductInventoryInput
+from demandguard.features import build_inference_features
 from demandguard.inventory import (
     build_reorder_worklist,
     solve_inventory_milp,
@@ -129,7 +129,6 @@ def generate_forecasts_from_history(
     df_hist["week_start"] = pd.to_datetime(df_hist["week_start"]).dt.date
 
     # Validate input
-    skus = sorted(df_hist["sku_id"].unique())
     all_weeks = sorted(df_hist["week_start"].unique())
     as_of_week = all_weeks[-1]
 
@@ -141,46 +140,7 @@ def generate_forecasts_from_history(
     # Load champion model bundle
     model, metadata = DemandGuardModel.load_bundle(artifact_dir)
 
-    target_weeks = [as_of_week + datetime.timedelta(weeks=h) for h in range(1, 5)]
-
-    feat_rows = []
-    for sku in skus:
-        sku_sub = df_hist[df_hist["sku_id"] == sku].sort_values("week_start")
-        sales_arr = sku_sub["units_sold"].values
-        if len(sales_arr) < 60:
-            raise ValueError(f"SKU {sku} has only {len(sales_arr)} history records; >=60 required.")
-
-        for h in range(1, 5):
-            f_dict = {
-                "sku_id": sku,
-                "origin_week_start": str(as_of_week),
-                "horizon": h,
-                "target_week_start": str(target_weeks[h - 1]),
-            }
-            # Lags relative to as_of_week (sales_arr[-1])
-            for off in [0, 1, 2, 3, 7, 12, 25, 51]:
-                idx = -(off + 1)
-                f_dict[f"lag_{off}"] = float(sales_arr[idx]) if abs(idx) <= len(sales_arr) else 0.0
-            for rw in [4, 13, 26]:
-                r_sub = sales_arr[-rw:]
-                f_dict[f"rolling_mean_{rw}"] = float(np.mean(r_sub))
-                f_dict[f"rolling_std_{rw}"] = (
-                    float(np.std(r_sub, ddof=1)) if len(r_sub) > 1 else 0.0
-                )
-                f_dict[f"zero_fraction_{rw}"] = float(np.mean(r_sub == 0))
-            f_dict["trend_4_4"] = (
-                float(np.mean(sales_arr[-4:]) - np.mean(sales_arr[-8:-4]))
-                if len(sales_arr) >= 8
-                else 0.0
-            )
-            tgt_d = target_weeks[h - 1]
-            f_dict["origin_week_of_year"] = as_of_week.isocalendar()[1]
-            f_dict["origin_month"] = as_of_week.month
-            f_dict["target_week_of_year"] = tgt_d.isocalendar()[1]
-            f_dict["target_month"] = tgt_d.month
-            feat_rows.append(f_dict)
-
-    feat_df = pd.DataFrame(feat_rows)
+    feat_df = build_inference_features(df_hist, as_of_week, horizon_weeks=4)
     raw_preds = model.predict(feat_df)
 
     out_rows = []
@@ -370,6 +330,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--reference", default="data/processed/weekly_sales.parquet", help="Reference data"
     )
 
+    p_v02 = subparsers.add_parser(
+        "experiment-v02", help="Run v0.2 pre-holdout selection and exploratory test scoring (D18)"
+    )
+    p_v02.add_argument("--config", default="config/project.yaml", help="Path to project config")
+    p_v02.add_argument("--scenario", default="config/scenario.yaml", help="Path to scenario config")
+
     p_rep = subparsers.add_parser("report", help="Generate comparison plots and release summary")
     p_rep.add_argument("--config", default="config/project.yaml", help="Path to project config")
     p_rep.add_argument("--scenario", default="config/scenario.yaml", help="Path to scenario config")
@@ -438,6 +404,12 @@ def main(args: list[str] | None = None) -> int:
         from demandguard.monitoring import run_monitoring_pipeline
 
         run_monitoring_pipeline(parsed.history, parsed.output, parsed.reference)
+        return 0
+
+    if parsed.command == "experiment-v02":
+        from demandguard.experiment_v02 import run_v02_experiment
+
+        run_v02_experiment(parsed.config, parsed.scenario)
         return 0
 
     if parsed.command == "report":

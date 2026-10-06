@@ -116,3 +116,21 @@ def test_api_async_reorder():
     assert resp_status.status_code == 200
     assert resp_status.json()["status"] in ("QUEUED", "RUNNING", "COMPLETED")
 
+
+def test_api_model_selection_rejects_untrusted_names():
+    """DEMANDGUARD_MODEL selects a trusted bundle by name and never accepts a path."""
+    import subprocess
+    import sys
+
+    def import_with(value):
+        return subprocess.run(
+            [sys.executable, "-c", "import demandguard.api as a; print(a.ARTIFACT_DIR.as_posix())"],
+            env={**__import__("os").environ, "DEMANDGUARD_MODEL": value},
+            capture_output=True,
+            text=True,
+        )
+
+    ok = import_with("v02")
+    assert ok.returncode == 0 and ok.stdout.strip() == "artifacts/v02"
+    bad = import_with("../../outside")
+    assert bad.returncode != 0 and "must be one of" in bad.stderr

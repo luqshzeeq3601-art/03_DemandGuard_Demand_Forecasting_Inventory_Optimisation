@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import datetime
+import os
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 import pulp
 from fastapi import BackgroundTasks, FastAPI, HTTPException, status
@@ -18,6 +18,7 @@ from demandguard.contracts import (
     ReorderResponse,
     ReorderScenarioRequest,
 )
+from demandguard.features import build_inference_features
 from demandguard.inventory import (
     build_reorder_worklist,
     solve_inventory_milp,
@@ -31,7 +32,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
-ARTIFACT_DIR = Path("artifacts/champion")
+# Only trusted local bundles are served; the env var selects one by name, never by path.
+TRUSTED_ARTIFACT_DIRS = {"champion": Path("artifacts/champion"), "v02": Path("artifacts/v02")}
+_model_name = os.environ.get("DEMANDGUARD_MODEL", "champion")
+if _model_name not in TRUSTED_ARTIFACT_DIRS:
+    raise RuntimeError(
+        f"DEMANDGUARD_MODEL must be one of {sorted(TRUSTED_ARTIFACT_DIRS)}, got {_model_name!r}."
+    )
+ARTIFACT_DIR = TRUSTED_ARTIFACT_DIRS[_model_name]
 
 
 def get_champion_model() -> tuple[DemandGuardModel, dict[str, Any]]:
@@ -94,51 +102,11 @@ def create_forecast(req: ForecastRequest) -> ForecastResponse:
     df_hist["week_start"] = pd.to_datetime(df_hist["week_start"]).dt.date
 
     as_of_date = pd.to_datetime(req.as_of_week_start).date()
-    target_weeks = [
-        as_of_date + datetime.timedelta(weeks=h) for h in range(1, req.horizon_weeks + 1)
-    ]
 
-    skus = sorted(df_hist["sku_id"].unique())
-    feat_rows = []
-    for sku in skus:
-        sku_sub = df_hist[df_hist["sku_id"] == sku].sort_values("week_start")
-        sales_arr = sku_sub["units_sold"].values
-        if len(sales_arr) < 60:
-            raise HTTPException(
-                status_code=422,
-                detail=f"SKU {sku} has {len(sales_arr)} weekly records; at least 60 consecutive weeks required.",
-            )
-
-        for h in range(1, req.horizon_weeks + 1):
-            f_dict = {
-                "sku_id": sku,
-                "origin_week_start": str(as_of_date),
-                "horizon": h,
-                "target_week_start": str(target_weeks[h - 1]),
-            }
-            for off in [0, 1, 2, 3, 7, 12, 25, 51]:
-                idx = -(off + 1)
-                f_dict[f"lag_{off}"] = float(sales_arr[idx]) if abs(idx) <= len(sales_arr) else 0.0
-            for rw in [4, 13, 26]:
-                r_sub = sales_arr[-rw:]
-                f_dict[f"rolling_mean_{rw}"] = float(np.mean(r_sub))
-                f_dict[f"rolling_std_{rw}"] = (
-                    float(np.std(r_sub, ddof=1)) if len(r_sub) > 1 else 0.0
-                )
-                f_dict[f"zero_fraction_{rw}"] = float(np.mean(r_sub == 0))
-            f_dict["trend_4_4"] = (
-                float(np.mean(sales_arr[-4:]) - np.mean(sales_arr[-8:-4]))
-                if len(sales_arr) >= 8
-                else 0.0
-            )
-            tgt_d = target_weeks[h - 1]
-            f_dict["origin_week_of_year"] = as_of_date.isocalendar()[1]
-            f_dict["origin_month"] = as_of_date.month
-            f_dict["target_week_of_year"] = tgt_d.isocalendar()[1]
-            f_dict["target_month"] = tgt_d.month
-            feat_rows.append(f_dict)
-
-    feat_df = pd.DataFrame(feat_rows)
+    try:
+        feat_df = build_inference_features(df_hist, as_of_date, horizon_weeks=req.horizon_weeks)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
     raw_preds = model.predict(feat_df)
 
     predictions = []

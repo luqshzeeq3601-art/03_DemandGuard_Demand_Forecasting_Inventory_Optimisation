@@ -169,11 +169,13 @@ def generate_full_report(
 | Policy | Net Cost (SCU) | Fill Rate | Total Demand | Sales | Unmet Units | Purchase Spend | Holding Cost | Unmet Penalty | Breaches | Cost vs P0 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 """
+    p0_cost = float(sim_df.loc[sim_df["policy"] == "P0_Rule", "net_realized_cost_scu"].iloc[0])
     for _, r in sim_df.iterrows():
+        delta = float(r["net_realized_cost_scu"]) - p0_cost
         diff_txt = (
-            "-1.52% (5,134.30 SCU saved)"
-            if "P1" in str(r["policy"])
-            else ("+7.76% (Increased)" if "P2" in str(r["policy"]) else "Baseline")
+            "Baseline"
+            if r["policy"] == "P0_Rule"
+            else f"{delta / p0_cost:+.2%} ({delta:+,.2f} SCU)"
         )
         inv_md += f"| `{r['policy']}` | {r['net_realized_cost_scu']:,.2f} | {r['fill_rate'] * 100:.2f}% | {r['total_demand']:,} | {r['total_sales']:,} | {r['total_unmet_units']:,} | {r['total_purchase_spend_scu']:,.2f} | {r['total_holding_cost_scu']:,.2f} | {r['total_unmet_penalty_scu']:,.2f} | {r['capacity_breaches']} | {diff_txt} |\n"
 
@@ -193,21 +195,28 @@ def generate_full_report(
     if stress_path.exists():
         str_df = pd.read_csv(stress_path)
         inv_md += "\n## 4. Budget Stress Scenarios ($0.6\\times, 1.0\\times, 1.4\\times$)\n"
-        inv_md += "| Budget Multiplier | Policy | Weekly Budget (SCU) | Net Cost (SCU) | Fill Rate | Unmet Units | Breaches |\n"
-        inv_md += "| --- | --- | --- | --- | --- | --- | --- |\n"
+        inv_md += "| Budget Multiplier | Policy | Weekly Budget (SCU) | Net Cost (SCU) | Fill Rate | Unmet Units | Breaches | Unproven Solves |\n"
+        inv_md += "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
         for _, r in str_df.iterrows():
-            inv_md += f"| **{r['budget_multiplier']:.1f}x** | `{r['policy']}` | {r['weekly_budget_scu']:,.0f} | {r['net_realized_cost_scu']:,.2f} | {r['fill_rate'] * 100:.2f}% | {r['total_unmet_units']:,} | {r['capacity_breaches']} |\n"
+            inv_md += f"| **{r['budget_multiplier']:.1f}x** | `{r['policy']}` | {r['weekly_budget_scu']:,.0f} | {r['net_realized_cost_scu']:,.2f} | {r['fill_rate'] * 100:.2f}% | {r['total_unmet_units']:,} | {r['capacity_breaches']} | {int(r.get('solver_failures', 0))} |\n"
 
-    inv_md += r"""
+    by_pol = sim_df.set_index("policy")
+    p1, p2 = by_pol.loc["P1_MILP_Baseline"], by_pol.loc["P2_MILP_Champion"]
+    p0_fill = float(by_pol.loc["P0_Rule", "fill_rate"])
+    penalty_share = float(
+        (sim_df["total_unmet_penalty_scu"] / sim_df["net_realized_cost_scu"]).mean()
+    )
+    failures = int(sim_df.get("solver_failures", pd.Series([0])).sum())
+    p1_change = (float(p1["net_realized_cost_scu"]) - p0_cost) / p0_cost
+    o5 = "met" if p1_change <= -0.05 and float(p1["fill_rate"]) >= p0_fill else "missed"
+    inv_md += f"""
 ## 5. Comparative Analysis & Key Findings
 1. **Cost & Service Trade-off**:
-   - **P1 (MILP + B2 Forecast)** achieved the lowest total business cost (**332,830.56 SCU**) and highest unit fill rate (**70.52%**), saving **5,134.30 SCU** (1.52% cost reduction) over the heuristic P0 rule (**337,964.86 SCU**), missing the 5% stretch target (O5).
-   - **P2 (MILP + ML Forecast)** suffered from under-forecasting during the Q4 demand surge, resulting in higher unmet demand penalties and a higher net cost (364,193.66 SCU).
-2. **Dominance of Unmet Demand Penalties (Tight Budget Context)**:
-   - Across all policies, unmet demand penalties ($p=5.0$ SCU) represent ~70% of total costs due to tight scenario budgets during the holiday ramp-up.
-   - In the 1.4x budget stress scenario, fill rate increases substantially as more inventory can be purchased, whereas under 0.6x budget, severe shortages occur across all policies.
-3. **Physical Feasibility**:
-   - Zero capacity breaches occurred in all scenarios and all policies, verifying that the committed-order reservation ($I_0 + A_1 + Q_1 \le C$) reliably protects physical storage limits.
+   - **P1 (MILP + B2 forecast)**: {float(p1["net_realized_cost_scu"]):,.2f} SCU, fill rate {float(p1["fill_rate"]):.2%}; {p1_change:+.2%} vs P0 ({p0_cost:,.2f} SCU). The 5% O5 stretch target is **{o5}**.
+   - **P2 (MILP + ML forecast)**: {float(p2["net_realized_cost_scu"]):,.2f} SCU, fill rate {float(p2["fill_rate"]):.2%}. The champion under-forecast the Q4 ramp, raising unmet-demand penalties.
+2. **Unmet-demand penalties dominate**: on average {penalty_share:.0%} of net cost across policies, because the scenario budget is tight during the holiday ramp-up.
+3. **Solver status**: MILP solves stop at a proven 0.1% relative gap (decision D23); unproven solves place no orders. Unproven solves in this run: {failures}.
+4. **Physical feasibility**: capacity breaches across policies: {int(sim_df["capacity_breaches"].sum())}.
 """
     with open(rep_dir / "inventory_simulation_report.md", "w", encoding="utf-8") as f:
         f.write(inv_md)

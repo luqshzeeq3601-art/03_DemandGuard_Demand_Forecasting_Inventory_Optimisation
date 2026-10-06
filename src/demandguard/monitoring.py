@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy.stats import ks_2samp
 
 
 def monitor_input_data_quality(
@@ -141,6 +142,23 @@ def run_monitoring_pipeline(
         ref_df = pd.read_parquet(ref_p)
 
     report = monitor_input_data_quality(df_hist, reference_df=ref_df)
+    if ref_df is not None and "units_sold" in df_hist:
+        # Compare like with like: only SKUs present in both datasets.
+        shared = set(df_hist["sku_id"]) & set(ref_df["sku_id"])
+        drift = compute_distribution_drift(
+            ref_df[ref_df["sku_id"].isin(shared)], df_hist[df_hist["sku_id"].isin(shared)]
+        )
+        drift["shared_skus"] = len(shared)
+        report["distribution_drift"] = drift
+        if not shared:
+            report["anomalies"].append("No SKUs shared with reference; drift not assessed.")
+            report["status"] = "WARNING"
+        elif drift.get("drift_level") == "SIGNIFICANT_DRIFT":
+            report["anomalies"].append(
+                f"Significant distribution drift: PSI {drift['psi_score']}, "
+                f"KS p-value {drift['ks_p_value']}."
+            )
+            report["status"] = "WARNING"
 
     out_p = Path(output_path)
     out_p.parent.mkdir(parents=True, exist_ok=True)
@@ -193,6 +211,7 @@ def compute_distribution_drift(
     cur_vals = current_df[column].to_numpy(dtype=float)
 
     psi = calculate_population_stability_index(ref_vals, cur_vals)
+    ks = ks_2samp(ref_vals, cur_vals) if len(ref_vals) and len(cur_vals) else None
 
     if psi < 0.10:
         drift_level = "NO_DRIFT"
@@ -202,9 +221,10 @@ def compute_distribution_drift(
         drift_level = "SIGNIFICANT_DRIFT"
 
     return {
-        "metric": "PSI",
+        "metric": "PSI+KS",
         "psi_score": float(round(psi, 4)),
         "drift_level": drift_level,
+        "ks_statistic": float(round(ks.statistic, 4)) if ks is not None else None,
+        "ks_p_value": float(ks.pvalue) if ks is not None else None,
         "sample_sizes": {"reference": len(ref_vals), "current": len(cur_vals)},
     }
-

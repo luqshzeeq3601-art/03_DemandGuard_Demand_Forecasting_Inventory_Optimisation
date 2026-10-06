@@ -88,3 +88,33 @@ def test_psi_drift_detection():
     drift_rep = compute_distribution_drift(df_ref, df_drift)
     assert drift_rep["drift_level"] == "SIGNIFICANT_DRIFT"
 
+
+def test_monitoring_pipeline_reports_distribution_drift(tmp_path):
+    """`monitor` must include PSI and KS drift for SKUs shared with the reference."""
+    import json
+
+    import numpy as np
+
+    from demandguard.monitoring import run_monitoring_pipeline
+
+    weeks = pd.date_range("2020-01-06", periods=20, freq="7D")
+    rng = np.random.default_rng(0)
+    ref = pd.DataFrame(
+        {"sku_id": "A", "week_start": weeks.date, "units_sold": rng.poisson(100, 20)}
+    )
+    ref_path = tmp_path / "ref.parquet"
+    ref.to_parquet(ref_path)
+
+    shifted = ref.assign(units_sold=ref["units_sold"] * 5)
+    hist_path = tmp_path / "hist.csv"
+    shifted.to_csv(hist_path, index=False)
+    out_path = tmp_path / "mon.json"
+
+    report = run_monitoring_pipeline(str(hist_path), str(out_path), str(ref_path))
+
+    drift = report["distribution_drift"]
+    assert drift["shared_skus"] == 1
+    assert drift["drift_level"] == "SIGNIFICANT_DRIFT"
+    assert drift["ks_p_value"] < 0.01
+    assert report["status"] == "WARNING"
+    assert json.loads(out_path.read_text())["distribution_drift"]["metric"] == "PSI+KS"
