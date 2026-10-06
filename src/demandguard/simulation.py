@@ -207,7 +207,6 @@ def step_product_inventory_stochastic_pipeline(
         storage_slots_per_unit=state.storage_slots_per_unit,
     )
 
-
     result = WeeklyStepResult(
         week_start=week_start,
         sku_id=state.sku_id,
@@ -228,4 +227,3 @@ def step_product_inventory_stochastic_pipeline(
     )
 
     return new_state, new_pipeline, result
-

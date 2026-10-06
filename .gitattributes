@@ -1,0 +1,4 @@
+# LightGBM model files must keep LF endings; CRLF checkouts make the loader abort.
+artifacts/**/model.txt -text
+*.parquet binary
+*.png binary

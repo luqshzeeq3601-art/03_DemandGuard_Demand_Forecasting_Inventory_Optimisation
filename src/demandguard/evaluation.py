@@ -1365,7 +1365,9 @@ def run_k_factor_validation_grid() -> pd.DataFrame:
 
                 for s in cohort:
                     dem = int(panel_dict.get((s, t_date), 0))
-                    st, r = step_product_inventory(states[s], solved_orders.get(s, [0])[0], dem, t_str, cap)
+                    st, r = step_product_inventory(
+                        states[s], solved_orders.get(s, [0])[0], dem, t_str, cap
+                    )
                     states[s] = st
                     step_res.append(r)
 

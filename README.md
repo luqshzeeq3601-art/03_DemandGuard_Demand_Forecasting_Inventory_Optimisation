@@ -161,6 +161,9 @@ py -3.11 -m venv .venv
 
 # 8. Generate comparison charts and release reports (T17)
 .\.venv\Scripts\python.exe -m demandguard.cli report --config config/project.yaml --scenario config/scenario.yaml
+
+# 9. v0.2: select among declared candidates before scoring the viewed test window (D18, about 3 min)
+.\.venv\Scripts\python.exe -m demandguard.cli experiment-v02 --config config/project.yaml --scenario config/scenario.yaml
 ```
 
 ### CLI Inference & Reorder Examples
@@ -171,12 +174,18 @@ py -3.11 -m venv .venv
 # Generate validated optimal integer reorder worklist
 .\.venv\Scripts\python.exe -m demandguard.cli reorder --history tests/fixtures/demo_history.csv --scenario tests/fixtures/demo_scenario.yaml --output reports/demo_reorder.csv
 
-# Run monitoring checks on incoming data
-.\.venv\Scripts\python.exe -m demandguard.cli monitor --history data/processed/weekly_sales.parquet --output reports/monitoring.json
+# Forecast with the v0.2 bundle instead of the default v0.1 champion
+.\.venv\Scripts\python.exe -m demandguard.cli forecast --history tests/fixtures/demo_history.csv --artifact-dir artifacts/v02 --output reports/demo_forecast_v02.csv
+
+# Run monitoring checks (schema, scale, PSI/KS drift) on an incoming history CSV
+.\.venv\Scripts\python.exe -m demandguard.cli monitor --history tests/fixtures/demo_history.csv --output reports/monitoring.json
 ```
 
 ### Run Test Suite
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -v
 .\.venv\Scripts\python.exe -m ruff check src tests
+.\.venv\Scripts\python.exe -m ruff format --check src tests
 ```
+
+`test_holdout_evaluation_structure` is skipped unless the gitignored panel exists (steps 1-3). The API serves `artifacts/champion` by default; set `DEMANDGUARD_MODEL=v02` to serve the v0.2 bundle.

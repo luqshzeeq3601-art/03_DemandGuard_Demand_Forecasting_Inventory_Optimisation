@@ -46,7 +46,6 @@ NUMERIC_FEATURES = [
 CATEGORICAL_FEATURES = ["sku_id"]
 
 
-
 class DemandGuardModel:
     """Wrapper for pooled direct-horizon LightGBM model."""
 
@@ -271,4 +270,3 @@ class HybridAdaptiveForecaster:
         return np.maximum(
             0.0, self.ml_weight * corrected_ml + self.b2_weight * np.asarray(b2_preds)
         )
-

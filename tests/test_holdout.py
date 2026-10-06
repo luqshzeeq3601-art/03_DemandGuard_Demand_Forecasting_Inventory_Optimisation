@@ -24,6 +24,10 @@ def test_holdout_access_requires_selection_record(tmp_path, monkeypatch):
         )
 
 
+@pytest.mark.skipif(
+    not Path("data/processed/weekly_sales.parquet").exists(),
+    reason="Needs the locally prepared panel (gitignored); run acquire/prepare/split first.",
+)
 def test_holdout_evaluation_structure():
     """Verify run_holdout_evaluation returns valid metrics structure on frozen artifacts."""
     res = run_holdout_evaluation(

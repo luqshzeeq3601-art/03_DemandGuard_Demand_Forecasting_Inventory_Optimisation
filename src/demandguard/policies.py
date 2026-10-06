@@ -93,4 +93,3 @@ def compute_quantile_spread_safety_stock(
     implied_sigma = spread / 2.5631  # 2 * 1.28155
     ss = service_level_z * implied_sigma * math.sqrt(lead_time_weeks)
     return max(0.0, float(round(ss, 2)))
-

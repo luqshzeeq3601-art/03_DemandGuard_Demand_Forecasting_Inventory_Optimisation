@@ -120,4 +120,3 @@ def test_hybrid_adaptive_forecaster():
     hybrid = forecaster.predict_hybrid(ml_preds, b2_preds, apply_bias_correction=True)
     assert len(hybrid) == 2
     assert (hybrid >= 0.0).all()
-

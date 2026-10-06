@@ -362,7 +362,9 @@ def build_reorder_worklist(
 
 def solve_stochastic_inventory_milp(
     products: list[ProductInventoryInput],
-    forecast_quantiles: dict[str, dict[str, list[float]]],  # sku -> {'p10': [...], 'p50': [...], 'p90': [...]}
+    forecast_quantiles: dict[
+        str, dict[str, list[float]]
+    ],  # sku -> {'p10': [...], 'p50': [...], 'p90': [...]}
     weekly_budgets_scu: list[float],
     warehouse_capacity_slots: int,
     scenario_weights: dict[str, float] | None = None,
@@ -387,14 +389,22 @@ def solve_stochastic_inventory_milp(
         sku = p.sku_id
         for t in range(1, 5):
             if t == 4:
-                Q[(sku, t)] = pulp.LpVariable(f"Q_{sku}_{t}", lowBound=0, upBound=0, cat=pulp.LpInteger)
+                Q[(sku, t)] = pulp.LpVariable(
+                    f"Q_{sku}_{t}", lowBound=0, upBound=0, cat=pulp.LpInteger
+                )
             else:
                 Q[(sku, t)] = pulp.LpVariable(f"Q_{sku}_{t}", lowBound=0, cat=pulp.LpInteger)
 
             for s in scenarios:
-                I[(sku, t, s)] = pulp.LpVariable(f"I_{sku}_{t}_{s}", lowBound=0, cat=pulp.LpContinuous)
-                U[(sku, t, s)] = pulp.LpVariable(f"U_{sku}_{t}_{s}", lowBound=0, cat=pulp.LpContinuous)
-                Z[(sku, t, s)] = pulp.LpVariable(f"Z_{sku}_{t}_{s}", lowBound=0, cat=pulp.LpContinuous)
+                I[(sku, t, s)] = pulp.LpVariable(
+                    f"I_{sku}_{t}_{s}", lowBound=0, cat=pulp.LpContinuous
+                )
+                U[(sku, t, s)] = pulp.LpVariable(
+                    f"U_{sku}_{t}_{s}", lowBound=0, cat=pulp.LpContinuous
+                )
+                Z[(sku, t, s)] = pulp.LpVariable(
+                    f"Z_{sku}_{t}_{s}", lowBound=0, cat=pulp.LpContinuous
+                )
                 b[(sku, t, s)] = pulp.LpVariable(f"b_{sku}_{t}_{s}", cat=pulp.LpBinary)
 
     # Objective: procurement cost + expected holding/shortage costs across scenarios
@@ -467,7 +477,8 @@ def solve_stochastic_inventory_milp(
     # Committed order reservation
     prob += (
         pulp.lpSum(
-            p.storage_slots_per_unit * (p.on_hand_units + p.incoming_week_1_units + Q[(p.sku_id, 1)])
+            p.storage_slots_per_unit
+            * (p.on_hand_units + p.incoming_week_1_units + Q[(p.sku_id, 1)])
             for p in products
         )
         <= warehouse_capacity_slots
@@ -495,4 +506,3 @@ def solve_stochastic_inventory_milp(
         "solver_name": "PULP_CBC_CMD",
     }
     return solver_meta, solved_orders, {}
-

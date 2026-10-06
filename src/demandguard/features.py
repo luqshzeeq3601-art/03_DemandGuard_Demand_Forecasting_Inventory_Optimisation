@@ -74,7 +74,6 @@ def extract_causal_features_for_series(
     return feats
 
 
-
 def build_feature_table(
     panel_df: pd.DataFrame,
     cohort_skus: list[str],

@@ -62,4 +62,3 @@ def test_quantile_spread_safety_stock():
 
     assert ss_low > 0
     assert ss_high > ss_low
-
