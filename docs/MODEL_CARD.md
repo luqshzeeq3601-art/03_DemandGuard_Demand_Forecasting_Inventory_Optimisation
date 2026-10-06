@@ -26,56 +26,53 @@
 | :--- | :--- | :--- | :--- | :--- | :---: | :--- |
 | **O1** | Trustworthy Weekly Data | Reconciled, leak-free panel from raw transactions | 100+ weeks, $\ge 10$ SKUs | 102 complete weeks, 30 SKUs, 9,013,090 panel units | ⚠️ **Mostly Met** | Panel is 100% verified. Gap of 358,320 units from clean data (9,371,410) is due to dropping partial boundary weeks (Dec 1–6, 2009 & Dec 5–9, 2011). |
 | **O2** | 4-Week Forecasts | Nonnegative, finite multi-step predictions | 100% coverage, breakdown reporting | 480 val + 360 holdout predictions | ⚠️ **Mostly Met** | Predictions exist and are valid; granular breakdowns by horizon and SKU provided in reports. |
-| **O3** | ML Forecast Superiority | LightGBM outperforms best simple baseline | $\ge 10\%$ WAPE reduction | Val: +7.76% (0.6200 vs 0.6722)<br>Holdout: -23.0% (0.7107 vs 0.5777)<br>v0.2 M2_q50: val +12.1%; test (exploratory) -9.3% | ❌ **Missed (Stretch)** | **Missed**: LightGBM failed to beat the trailing 4-week mean on the 12-week test holdout. |
+| **O3** | ML forecast superiority | Same-row baseline comparison | At least 10% lower WAPE | Validation gain 5.97%; viewed holdout ML 12.62% worse than B2 | **Missed** | D21 refit limitation remains disclosed; no new untouched test. |
 | **O4** | Feasible Orders | Physical & financial constraints strictly respected | 0 breaches, integer orders | 0 capacity breaches, 0 budget violations across all 12 weeks | ✅ **Met** | Pre-demand bounds and committed-order arrival space protection ($I_0 + A_1 + Q_1 \le C$) verified. |
-| **O5** | Inventory Cost Reduction | Optimised replenishment reduces total supply chain cost | $\ge 5\%$ cost reduction, $\ge$ fill rate | P1: -0.85% (335.1k vs 338.0k SCU), fill 70.16% vs 69.66%<br>P2: +7.61% cost | ❌ **Missed (Stretch)** | **Missed**: re-measured with the reproducible solver (D23). The published 1.52% figure came from time-limited solves (D22). The ML-driven P2 increased cost. |
-| **O6** | Reproducible Engineering | Test suite, linting, CLI, API, container & CI | Passing tests, clean lint, verified contracts | 47 passing tests, clean Ruff lint, API & container verified, active GitHub Actions CI | ✅ **Met** | Unit/integration tests pass. Local git repository synchronized; remote GitHub Actions CI actively running and verified passing. |
+| **O5** | Inventory cost reduction | Total SCU and fill-rate comparison | At least 5% lower cost, non-worse fill | P1 cost +0.67%; fill 68.05% vs P0 69.66%; 2 unproven solves | **Missed** | Source: current main simulation CSV; separate historical stress runs are not pooled. |
+| **O6** | Reproducible engineering | Tests, lint, CLI, API, container and CI | Passing required checks | Report regression passes; Docker runtime job prepared | **Runtime proof pending** | Previous CI build passed; candidate runtime job and public serving remain unverified. |
 | **O7** | Chat-Independent Docs | Specs, logs, runbooks, and decisions self-contained | Markdown source of truth | Comprehensive specs, logs, and runbooks | ✅ **Met** | Markdown documentation complete and fully self-contained. |
 
-## 5. Measured Performance
+## 5. Current packaged-artifact results
 
-### Validation Backtesting (Pooled WAPE, 480 predictions)
-| Candidate Model | WAPE | MAE (Units) | Bias |
+These tables use the saved files identified by [the evidence manifest](../reports/evidence_manifest.json). D21 discloses the v0.1 refit-selection defect: the legacy M1_lgb_deep label represents an artifact with 31 leaves and 80 trees. Earlier decision-log and exploratory-run figures remain historical evidence.
+
+### A. Validation
+
+| Model ID | Validation WAPE | MAE (units) | Bias |
 | --- | --- | --- | --- |
-| **LightGBM Deep (Champion)** | **0.6200** | **205.02** | **-0.0253** |
-| LightGBM Fast | 0.6206 | 205.20 | -0.0236 |
-| LightGBM Default | 0.6246 | 206.56 | -0.0436 |
-| Trailing 4-Week Mean (B2) | 0.6722 | 222.27 | +0.0237 |
-| Last Observed Value (B1) | 0.7250 | 239.75 | -0.0564 |
-| ARIMA (1,1,1) (B4) | 0.7344 | 242.85 | +0.1893 |
-| Seasonal Naive (B3) | 1.0687 | 353.40 | +0.4045 |
+| M1_lgb_deep | 0.6320 | 208.99 | +0.0009 |
+| M1_lgb_default | 0.6334 | 209.46 | -0.0214 |
+| M1_lgb_small | 0.6421 | 212.32 | +0.0366 |
+| M1_lgb_fast | 0.6450 | 213.29 | +0.0120 |
+| B2 | 0.6722 | 222.27 | +0.0237 |
+| B1 | 0.7250 | 239.75 | -0.0564 |
+| B4_arima_111 | 0.7344 | 242.85 | +0.1893 |
+| B4_arima_100 | 0.8201 | 271.17 | +0.2981 |
+| B3 | 1.0687 | 353.40 | +0.4045 |
 
-### Final 12-Week Test Holdout (360 predictions)
-| Model | Holdout WAPE | Holdout MAE | Signed Bias | Status vs ML |
+### B. Previously viewed holdout
+
+| Model ID | Holdout WAPE | MAE (units) | Bias |
+| --- | --- | --- | --- |
+| B2 | 0.5777 | 250.67 | -0.1523 |
+| B4 | 0.6423 | 278.68 | +0.0232 |
+| CHAMPION_M1_lgb_deep | 0.6506 | 282.30 | -0.3053 |
+| B1 | 0.7090 | 307.64 | -0.0598 |
+| B3 | 1.0693 | 463.97 | +0.5044 |
+
+The ML artifact has 12.62% higher WAPE than B2. Its observed bias is -30.53%. This does not establish a causal explanation for the seasonal error, and reproducing the viewed holdout does not create a new untouched test.
+
+### C. Main inventory simulation
+
+| Policy | Total simulated cost (SCU) | Fill rate | Unmet units | Unproven solves |
 | --- | --- | --- | --- | --- |
-| **Trailing 4-Week Mean (B2)** | **0.5777** | **250.67** | **-0.1523** | **Beat ML by 18.7% lower error** |
-| ARIMA (B4) | 0.6423 | 278.68 | +0.0232 | Beat ML |
-| Last Value (B1) | 0.7090 | 307.64 | -0.0598 | Beat ML |
-| **LightGBM Champion (M1)** | **0.7107** | **308.37** | **-0.2736** | **Lost on test holdout (-27.4% bias)** |
-| Seasonal Naive (B3) | 1.0693 | 463.97 | +0.5044 | Baseline |
+| P0_Rule | 337,964.86 | 69.66% | 47,393 | 0 |
+| P1_MILP_Baseline | 340,215.08 | 68.05% | 49,909 | 2 |
+| P2_MILP_Champion | 355,391.66 | 66.79% | 51,872 | 0 |
 
-### 12-Week Inventory Simulation Outcomes (Synthetic SCU)
-| Replenishment Policy | Net Realised Cost (SCU) | Fill Rate | Unmet Units | Breaches | Cost Reduction vs P0 |
-| --- | --- | --- | --- | --- | --- |
-| **P1 (MILP + B2 Forecast)** | **335,099.70** | **70.16%** | **46,617** | **0** | **-0.85% (2,865.16 SCU saved)** |
-| P0 (Constrained Heuristic Rule) | 337,964.86 | 69.66% | 47,393 | 0 | Baseline |
-| P2 (MILP + LightGBM Forecast) | 363,667.40 | 65.60% | 53,730 | 0 | +7.61% (Cost Increased) |
+P1 total cost is +0.67% versus P0 and its fill rate is 68.05% versus 69.66%. P2 total cost is +5.16%. O3/O5 improvement targets remain missed. Costs are invented scenario units, not actual financial savings. Separate stress/v0.2 runs must not be mixed into this headline.
 
-## 6. Scientific Findings & Root Cause Analysis
-
-1. **Validation vs Holdout Divergence (Seasonal Distribution Shift)**:
-   - The 4 validation folds (Origins 74, 78, 82, 86) spanned May to August 2011 (summer sales with steady patterns), where LightGBM outperformed B2 by 7.76% (0.6200 vs 0.6722).
-   - The test holdout spanned September to November 2011 (the Q4 UK Christmas pre-holiday surge). LightGBM exhibited severe negative bias (-27.36%), under-forecasting the rapid demand surge. In contrast, the trailing 4-week mean (B2) adapted faster to the rising trend.
-2. **Inventory Budget Constraint Effect**:
-   - Across all policies, unit fill rates hover around 65%–70% because the synthetic weekly budget is tight relative to peak Q4 demand.
-   - Unmet demand penalties ($p=5.0$ SCU) account for ~70% of total supply chain costs, heavily penalizing under-forecasting.
-3. **Selection Rule Compliance**:
-   - `M1_lgb_deep` (0.6200) and `M1_lgb_fast` (0.6206) were within 0.09% WAPE. `M1_lgb_deep` was selected for minimal absolute error, though `M1_lgb_fast` is the canonical simpler model under the 1% simplicity rule (documented in Decision D16). The frozen artifact was actually refit with default parameters (lr 0.05, 31 leaves, 80 trees), not the `M1_lgb_deep` settings (D21); the published holdout numbers describe that refit model.
-4. **Hardware & Latency**:
-   - Model inference latency: <0.05s for 30 SKUs.
-   - PuLP CBC integer solve runtime: up to 7s per 30-SKU holdout solve at the 0.1% gap (D23). Without a gap, most solves hit the 10s limit (D22).
-
-## 7. v0.2 experiment results (decision D18)
+## 7. Historical exploratory v0.2 experiment results (decision D18)
 
 Command: `python -m demandguard.cli experiment-v02`. Evidence: [reports/v02_experiment.md](../reports/v02_experiment.md).
 
@@ -115,5 +112,5 @@ M2_q50 was frozen as champion. It is 12.1% better than B2 on validation, which m
 
 1. The v0.2 features improved validation error but did not fix the peak-season under-forecast. Every ML candidate still under-forecasts the test window by 27-42%. The quantile median is the worst: it targets the median, and demand is right-skewed.
 2. Only the B2 blend comes close to B2 on the test window. No candidate beats it.
-3. Policy results are now reproducible (D23). The stochastic optimiser cannot prove a solution within the 10s limit in any week, so under the spec it places no orders. Its earlier 360k figure came from executing unproven solutions. Quantile-spread safety stock (P5) did worse than the k x std rule (P3), because the P50 forecast itself is biased low.
+3. These are separately recorded D23 exploratory-run results; they are not the current main CSV headline. The stochastic optimiser cannot prove a solution within the 10s limit in any week, so under the spec it places no orders. Its earlier 360k figure came from executing unproven solutions. Quantile-spread safety stock (P5) did worse than the k x std rule (P3), because the P50 forecast itself is biased low.
 4. The P50 bundle is servable from `artifacts/v02/` (`DEMANDGUARD_MODEL=v02`, or `forecast --artifact-dir artifacts/v02`). The default remains the v0.1 champion.

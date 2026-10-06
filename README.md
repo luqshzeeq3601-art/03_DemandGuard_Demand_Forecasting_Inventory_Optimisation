@@ -9,11 +9,11 @@
 [![DuckDB](https://img.shields.io/badge/DuckDB-1.1+-FFF000.svg?style=flat&logo=duckdb&logoColor=black)](https://duckdb.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat)](LICENSE)
 
-> **Business Impact:** Mathematical replenishment optimization ($P1$) cuts inventory holding costs by **8.01%** while achieving a **+0.50% higher unit fill rate** (eliminating 776 stockout units) with **0 warehouse capacity breaches** under identical budget and storage limits.
+> **Measured outcome:** P1 costs +0.67% more than the rule and has a lower fill rate on the current saved run. Zero capacity breaches were recorded; the cost-reduction target is missed.
 
 DemandGuard tests one question: **can a time-aware sales forecast support better weekly purchasing decisions than a simple reorder rule under the same budget and storage limits?** It forecasts four weeks of demand for 30 established products from the UCI Online Retail II data, then uses a mixed-integer program (PuLP/CBC) to recommend whole-unit orders. A 12-week simulation then compares the recommendations against a constrained rule.
 
-**Headline result (honest):** LightGBM beat the 4-week moving average on validation but lost on the 12-week test window. The best optimised policy saved 0.85% of simulated cost against the rule, short of the 5% target. Costs are synthetic scenario units (SCU), not real money. Section 1 has the full objective scorecard; section 6 lists the limitations.
+**Headline result:** Saved validation WAPE is 0.6320 versus B2 0.6722. On the already viewed holdout, ML WAPE is 0.6506 versus B2 0.5777. P1 simulated total cost is 340,215.08 SCU versus P0 337,964.86.
 
 
 ```mermaid
@@ -35,60 +35,55 @@ flowchart LR
 | :--- | :--- | :--- | :--- | :--- | :---: | :--- |
 | **O1** | Trustworthy Weekly Data | Reconciled, leak-free panel from raw transactions | 100+ weeks, $\ge 10$ SKUs | 102 complete weeks, 30 SKUs, 9,013,090 panel units | ⚠️ **Mostly Met** | Panel is 100% verified. Gap of 358,320 units from clean data (9,371,410) is due to dropping partial boundary weeks (Dec 1–6, 2009 & Dec 5–9, 2011). |
 | **O2** | 4-Week Forecasts | Nonnegative, finite multi-step predictions | 100% coverage, breakdown reporting | 480 val + 360 holdout predictions | ⚠️ **Mostly Met** | Predictions exist and are valid; granular breakdowns by horizon and SKU provided in reports. |
-| **O3** | ML Forecast Superiority | LightGBM outperforms best simple baseline | $\ge 10\%$ WAPE reduction | Val: +7.76% (0.6200 vs 0.6722)<br>Holdout: -23.0% (0.7107 vs 0.5777)<br>v0.2 M2_q50: val +12.1%; test (exploratory) -9.3% | ❌ **Missed (Stretch)** | **Missed**: v0.1 LightGBM lost to the trailing 4-week mean on the test window. v0.2 cleared 10% on validation only; it also lost on the (already viewed) test window. |
+| **O3** | ML forecast superiority | Same-row baseline comparison | At least 10% lower WAPE | Validation gain 5.97%; viewed holdout ML 12.62% worse than B2 | **Missed** | D21 refit limitation remains disclosed; no new untouched test. |
 | **O4** | Feasible Orders | Physical & financial constraints strictly respected | 0 breaches, integer orders | 0 capacity breaches, 0 budget violations across all 12 weeks | ✅ **Met** | Pre-demand bounds and committed-order arrival space protection ($I_0 + A_1 + Q_1 \le C$) verified. |
-| **O5** | Inventory Cost Reduction | Optimised replenishment reduces total supply chain cost | $\ge 5\%$ cost reduction, $\ge$ fill rate | P1: -0.85% (335.1k vs 338.0k SCU), fill 70.16% vs 69.66%<br>P2: +7.61% cost | ❌ **Missed (Stretch)** | **Missed**: re-measured with the reproducible solver (D23). The published 1.52% figure came from time-limited solves (D22). The ML-driven P2 increased cost. |
-| **O6** | Reproducible Engineering | Test suite, linting, CLI, API, container & CI | Passing tests, clean lint, verified contracts | 47 passing tests, clean Ruff lint, API & container verified, active GitHub Actions CI | ✅ **Met** | Unit/integration tests pass. Local git repository synchronized; remote GitHub Actions CI actively running and verified passing. |
+| **O5** | Inventory cost reduction | Total SCU and fill-rate comparison | At least 5% lower cost, non-worse fill | P1 cost +0.67%; fill 68.05% vs P0 69.66%; 2 unproven solves | **Missed** | Source: current main simulation CSV; separate historical stress runs are not pooled. |
+| **O6** | Reproducible engineering | Tests, lint, CLI, API, container and CI | Passing required checks | Report regression passes; Docker runtime job prepared | **Runtime proof pending** | Previous CI build passed; candidate runtime job and public serving remain unverified. |
 | **O7** | Chat-Independent Docs | Specs, logs, runbooks, and decisions self-contained | Markdown source of truth | Comprehensive specs, logs, and runbooks | ✅ **Met** | Markdown documentation complete and fully self-contained. |
 
 ---
 
-## 2. Measured Benchmark Results
+## 2. Current packaged-artifact results
 
-### A. Forecast Validation (Pooled WAPE, 4 Chronological Folds)
-| Model ID | Model Type | Validation WAPE | MAE (Units) | Bias | Result vs Baseline |
-| --- | --- | --- | --- | --- | --- |
-| **`M1_lgb_deep`** | **Direct Pooled LightGBM (Champion)** | **0.6200** | **205.02** | **-0.0253** | **Won validation (-7.76% error vs B2)** |
-| `M1_lgb_fast` | Direct Pooled LightGBM | 0.6206 | 205.20 | -0.0236 | -7.68% error vs B2 |
-| `M1_lgb_default` | Direct Pooled LightGBM | 0.6246 | 206.56 | -0.0436 | -7.08% error vs B2 |
-| `B2` | Trailing 4-Week Mean | 0.6722 | 222.27 | +0.0237 | Strongest Baseline |
-| `B1` | Last Observed Week | 0.7250 | 239.75 | -0.0564 | Baseline |
-| `B4` | Per-SKU ARIMA(1,1,1) | 0.7344 | 242.85 | +0.1893 | Statistical Baseline |
-| `B3` | Annual Seasonal Naive | 1.0687 | 353.40 | +0.4045 | Baseline |
+These tables use the saved files identified by [the evidence manifest](reports/evidence_manifest.json). D21 discloses the v0.1 refit-selection defect: the legacy M1_lgb_deep label represents an artifact with 31 leaves and 80 trees. Earlier decision-log and exploratory-run figures remain historical evidence.
 
-### B. Final 12-Week Out-of-Sample Holdout Forecast (360 Predictions)
-| Model ID | Model Type | Holdout WAPE | Holdout MAE | Signed Bias | Outcome vs ML |
-| --- | --- | --- | --- | --- | --- |
-| **`B2`** | **Trailing 4-Week Mean** | **0.5777** | **250.67** | **-0.1523** | **Beat ML by 18.7% lower error** |
-| `B4` | Per-SKU ARIMA(1,0,0) | 0.6423 | 278.68 | +0.0232 | Beat ML |
-| `B1` | Last Observed Week | 0.7090 | 307.64 | -0.0598 | Beat ML |
-| `CHAMPION_M1` | Frozen Direct LightGBM | 0.7107 | 308.37 | -0.2736 | Lost on holdout (-27.4% under-forecast) |
-| `B3` | Annual Seasonal Naive | 1.0693 | 463.97 | +0.5044 | Baseline |
+### A. Validation
 
-### C. Final 12-Week Out-of-Sample Holdout Inventory Simulation (Continuous 12 Weeks)
-| Policy ID | Policy Description | Net Realised Cost (SCU) | Unit Fill Rate | Capacity Breaches | Cost Reduction vs P0 |
-| --- | --- | --- | --- | --- | --- |
-| **`P1`** | **PuLP MILP + Trailing 4-Week Mean (B2)** | **335,099.70** | **70.16%** | **0** | **-0.85% (2,865.16 SCU saved)** |
-| `P0` | Constrained Heuristic Order-Up-To Rule | 337,964.86 | 69.66% | 0 | Operational Reference Baseline |
-| `P2` | PuLP MILP + LightGBM Champion Forecast | 363,667.40 | 65.60% | 0 | +7.61% (Cost Increased) |
+| Model ID | Validation WAPE | MAE (units) | Bias |
+| --- | --- | --- | --- |
+| M1_lgb_deep | 0.6320 | 208.99 | +0.0009 |
+| M1_lgb_default | 0.6334 | 209.46 | -0.0214 |
+| M1_lgb_small | 0.6421 | 212.32 | +0.0366 |
+| M1_lgb_fast | 0.6450 | 213.29 | +0.0120 |
+| B2 | 0.6722 | 222.27 | +0.0237 |
+| B1 | 0.7250 | 239.75 | -0.0564 |
+| B4_arima_111 | 0.7344 | 242.85 | +0.1893 |
+| B4_arima_100 | 0.8201 | 271.17 | +0.2981 |
+| B3 | 1.0687 | 353.40 | +0.4045 |
 
----
+### B. Previously viewed holdout
 
-## 3. Scientific Analysis & Key Takeaways
+| Model ID | Holdout WAPE | MAE (units) | Bias |
+| --- | --- | --- | --- |
+| B2 | 0.5777 | 250.67 | -0.1523 |
+| B4 | 0.6423 | 278.68 | +0.0232 |
+| CHAMPION_M1_lgb_deep | 0.6506 | 282.30 | -0.3053 |
+| B1 | 0.7090 | 307.64 | -0.0598 |
+| B3 | 1.0693 | 463.97 | +0.5044 |
 
-1. **Why the Simple Forecast Beat the ML Model on the Test Holdout**:
-   - The 4 validation origins ran May–August 2011 (summer sales with stable velocity), where LightGBM learned steady patterns and achieved 0.6200 WAPE.
-   - The final test holdout ran September–November 2011 (the Q4 UK Christmas pre-holiday surge). LightGBM was selected without having been validated on a peak-season transition and heavily under-forecast the demand surge (-27.4% bias).
-   - In contrast, the trailing 4-week mean baseline (B2) adjusted rapidly to week-over-week rising sales volume, yielding lower error (0.5777 WAPE).
-2. **Why Fill Rate is ~70% Across All Policies**:
-   - Under the synthetic scenario settings, the weekly purchase budget is tight relative to peak Q4 demand.
-   - Unmet demand penalties ($p=5.0$ SCU/unit) comprise ~70% of total supply chain costs. Because stock is constrained by budget, all policies experience similar stockout pressures.
-3. **Physical Feasibility**:
-   - Zero warehouse capacity breaches occurred across all 12 weeks for all policies, proving the mathematical validity of the committed-order arrival reservation ($I_0 + A_1 + Q_1 \le C$).
+The ML artifact has 12.62% higher WAPE than B2. Its observed bias is -30.53%. This does not establish a causal explanation for the seasonal error, and reproducing the viewed holdout does not create a new untouched test.
 
----
+### C. Main inventory simulation
 
-## 3a. v0.2 experiment results (decision D18)
+| Policy | Total simulated cost (SCU) | Fill rate | Unmet units | Unproven solves |
+| --- | --- | --- | --- | --- |
+| P0_Rule | 337,964.86 | 69.66% | 47,393 | 0 |
+| P1_MILP_Baseline | 340,215.08 | 68.05% | 49,909 | 2 |
+| P2_MILP_Champion | 355,391.66 | 66.79% | 51,872 | 0 |
+
+P1 total cost is +0.67% versus P0 and its fill rate is 68.05% versus 69.66%. P2 total cost is +5.16%. O3/O5 improvement targets remain missed. Costs are invented scenario units, not actual financial savings. Separate stress/v0.2 runs must not be mixed into this headline.
+
+## 3a. Historical exploratory run: v0.2 experiment results (decision D18)
 
 Command: `python -m demandguard.cli experiment-v02`. Evidence: [reports/v02_experiment.md](reports/v02_experiment.md).
 
@@ -128,7 +123,7 @@ M2_q50 was frozen as champion. It is 12.1% better than B2 on validation, which m
 
 1. The v0.2 features improved validation error but did not fix the peak-season under-forecast. Every ML candidate still under-forecasts the test window by 27-42%. The quantile median is the worst: it targets the median, and demand is right-skewed.
 2. Only the B2 blend comes close to B2 on the test window. No candidate beats it.
-3. Policy results are now reproducible (D23). The stochastic optimiser cannot prove a solution within the 10s limit in any week, so under the spec it places no orders. Its earlier 360k figure came from executing unproven solutions. Quantile-spread safety stock (P5) did worse than the k x std rule (P3), because the P50 forecast itself is biased low.
+3. These are separately recorded D23 exploratory-run results; they are not the current main CSV headline. The stochastic optimiser cannot prove a solution within the 10s limit in any week, so under the spec it places no orders. Its earlier 360k figure came from executing unproven solutions. Quantile-spread safety stock (P5) did worse than the k x std rule (P3), because the P50 forecast itself is biased low.
 4. The P50 bundle is servable from `artifacts/v02/` (`DEMANDGUARD_MODEL=v02`, or `forecast --artifact-dir artifacts/v02`). The default remains the v0.1 champion.
 
 ---
@@ -137,7 +132,7 @@ M2_q50 was frozen as champion. It is 12.1% better than B2 on validation, which m
 
 In evaluating public retail data for enterprise inventory replenishment modeling:
 1. **data.gov.my / OpenDOSM**: Provides macroeconomic wholesale and retail trade volume indices. While valuable for macroeconomic reporting, these series are monthly top-line aggregate indices across broad categories (e.g., motor vehicles, food retail) without SKU identifiers, individual transaction timestamps, customer order baskets, or unit prices. A physical warehouse inventory solver cannot optimize storage space or joint purchase budgets from abstract monthly indices.
-2. **UCI Online Retail II**: Provides 1,048,575 itemized customer transactions across 102 continuous weeks (Dec 2009 – Dec 2011). It features individual product stock codes, customer invoice IDs, unit prices, and purchase quantities. This transactional granularity enables causal direct-horizon demand forecasting and realistic multi-product replenishment optimization directly transferable to enterprise retail inventory management in Malaysia (e.g., Lotus's, Mydin, 99 Speedmart).
+2. **UCI Online Retail II**: Provides 1,048,575 itemized customer transactions across 102 continuous weeks (Dec 2009 – Dec 2011). It features individual product stock codes, customer invoice IDs, unit prices, and purchase quantities. This transactional granularity enables causal direct-horizon demand forecasting and realistic multi-product replenishment optimization useful as a methods demonstration; Malaysian performance remains unverified (e.g., Lotus's, Mydin, 99 Speedmart).
 
 ---
 
@@ -218,11 +213,11 @@ py -3.11 -m venv .venv
 
 Interactive schema: `http://127.0.0.1:8000/docs`. Set `DEMANDGUARD_MODEL=v02` to serve the v0.2 bundle; only `champion` (default) and `v02` are accepted.
 
-### Live Cloud Deployment & Endpoints
+### Cloud deployment configuration and verification
 
-- **Live Swagger API Docs:** [https://demandguard-api.onrender.com/docs](https://demandguard-api.onrender.com/docs)
-- **Health Check Endpoint:** [https://demandguard-api.onrender.com/health](https://demandguard-api.onrender.com/health)
-- **Readiness Check Endpoint:** [https://demandguard-api.onrender.com/ready](https://demandguard-api.onrender.com/ready)
+- **Configured Swagger URL (verification pending):** [https://demandguard-api.onrender.com/docs](https://demandguard-api.onrender.com/docs)
+- **Configured health endpoint:** [https://demandguard-api.onrender.com/health](https://demandguard-api.onrender.com/health)
+- **Configured readiness endpoint:** [https://demandguard-api.onrender.com/ready](https://demandguard-api.onrender.com/ready)
 
 #### 1-Click Free Tier Deployment (Render)
 The repository includes [`render.yaml`](render.yaml) configured for Render's free Docker web service in `singapore`:

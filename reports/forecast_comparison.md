@@ -22,16 +22,16 @@
 - **Rationale**: Lowest pooled validation WAPE (0.6320).
 - **Validation WAPE**: `0.6320`
 - **Chosen Safety Stock Factor ($k$)**: `1.0`
-- **Selection Tolerance Note (Decision D16)**: `M1_lgb_deep` (0.6200) and `M1_lgb_fast` (0.6206) differ by 0.09% (<1.0% tolerance). `M1_lgb_fast` represents the canonical simpler/faster model under the 1% simplicity rule.
+- **Selection provenance**: This table uses the current saved selection record and CSVs. D16 describes an earlier comparison; D21 records that the v0.1 artifact was refit with default parameters. Consult artifact metadata for the actual fitted parameters, not the legacy model label.
 
 ## 3. Final Test Holdout Evaluation (12 Weeks Out-of-Sample)
 | Model ID | Holdout WAPE | Holdout MAE | Signed Bias | Actual Units | Total Error | Status vs ML |
 | --- | --- | --- | --- | --- | --- | --- |
-| `B2` | 0.5777 | 250.67 | -0.1523 | 156,206 | 90,241.5 | Beat ML by 18.7% lower error |
-| `B4` | 0.6423 | 278.68 | +0.0232 | 156,206 | 100,326.4 | Baseline |
-| `CHAMPION_M1_lgb_deep` | 0.6506 | 282.30 | -0.3053 | 156,206 | 101,627.5 | Lost on holdout (-27.4% bias) |
-| `B1` | 0.7090 | 307.64 | -0.0598 | 156,206 | 110,750.0 | Baseline |
-| `B3` | 1.0693 | 463.97 | +0.5044 | 156,206 | 167,029.0 | Baseline |
+| `B2` | 0.5777 | 250.67 | -0.1523 | 156,206 | 90,241.5 | 11.2% lower error than ML |
+| `B4` | 0.6423 | 278.68 | +0.0232 | 156,206 | 100,326.4 | 1.3% lower error than ML |
+| `CHAMPION_M1_lgb_deep` | 0.6506 | 282.30 | -0.3053 | 156,206 | 101,627.5 | ML bias -30.53% |
+| `B1` | 0.7090 | 307.64 | -0.0598 | 156,206 | 110,750.0 | 9.0% higher error than ML |
+| `B3` | 1.0693 | 463.97 | +0.5044 | 156,206 | 167,029.0 | 64.4% higher error than ML |
 
 ## 4. Feature Ablation Study (Validation Folds)
 | Configuration | Feature Count | Validation WAPE | Validation MAE | Validation Bias |
@@ -49,7 +49,7 @@
 | **30 SKUS** | 0.117s / 0.157s | 3.1ms / 4.1ms | 58.9ms / 119.8ms |
 
 ## 6. Scientific Observations & Root Cause Analysis
-1. **Validation Performance**: Direct pooled LightGBM achieved the lowest WAPE (0.6200), outperforming the strongest baseline B2 (0.6722) by 7.76% (missing the 10% stretch target O3).
-2. **Holdout Generalisation**: On the final 12-week test holdout, trailing 4-week mean baseline B2 achieved WAPE = 0.5777, outperforming LightGBM (0.7107) by 18.7%.
-3. **Distribution Shift**: Validation covered May–August 2011 (stable summer sales); holdout covered September–November 2011 (Q4 pre-holiday surge). LightGBM under-forecasted the seasonal rise (-27.36% bias), whereas the simple 4-week mean adapted faster.
-4. **No Target Leakage**: All models were frozen before holdout evaluation. Historical lag updates used only closed historical prefixes.
+1. **Validation Performance**: The saved champion WAPE is 0.6320 versus B2 0.6722, a 5.97% relative reduction. The 10% target is missed.
+2. **Holdout Comparison**: B2 WAPE is 0.5777 and the saved ML artifact WAPE is 0.6506. Comparisons above are computed from these same saved rows.
+3. **Observed Bias**: The ML artifact's holdout bias is -30.53%. Seasonal transfer is a hypothesis consistent with the Q4 evaluation period, not a measured causal explanation.
+4. **Evaluation Boundary**: Historical lags use closed prefixes. D21 discloses the refit-selection defect. Reproduction of this already viewed holdout is not a new untouched evaluation.

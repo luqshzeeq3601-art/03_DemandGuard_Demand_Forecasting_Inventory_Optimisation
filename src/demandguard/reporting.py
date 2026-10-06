@@ -38,6 +38,12 @@ def generate_full_report(
     with open(sel_json, "r", encoding="utf-8") as f:
         sel_meta = json.load(f)
 
+    champion_val = val_df.loc[val_df["model_id"] == sel_meta["champion_model_id"]].iloc[0]
+    baseline_val = val_df.loc[val_df["model_id"] == "B2"].iloc[0]
+    champion_hold = holdout_df.loc[holdout_df["model_id"].str.startswith("CHAMPION")].iloc[0]
+    baseline_hold = holdout_df.loc[holdout_df["model_id"] == "B2"].iloc[0]
+    validation_gain = 1 - float(champion_val["wape"]) / float(baseline_val["wape"])
+
     # 1. Plot 1: Forecast Comparison (Validation vs Holdout WAPE)
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
@@ -112,20 +118,22 @@ def generate_full_report(
 - **Rationale**: {sel_meta["selection_reason"]}
 - **Validation WAPE**: `{sel_meta["selection_validation_wape"]:.4f}`
 - **Chosen Safety Stock Factor ($k$)**: `{sel_meta["chosen_safety_stock_k"]}`
-- **Selection Tolerance Note (Decision D16)**: `M1_lgb_deep` (0.6200) and `M1_lgb_fast` (0.6206) differ by 0.09% (<1.0% tolerance). `M1_lgb_fast` represents the canonical simpler/faster model under the 1% simplicity rule.
+- **Selection provenance**: This table uses the current saved selection record and CSVs. D16 describes an earlier comparison; D21 records that the v0.1 artifact was refit with default parameters. Consult artifact metadata for the actual fitted parameters, not the legacy model label.
 
 ## 3. Final Test Holdout Evaluation (12 Weeks Out-of-Sample)
 | Model ID | Holdout WAPE | Holdout MAE | Signed Bias | Actual Units | Total Error | Status vs ML |
 | --- | --- | --- | --- | --- | --- | --- |
 """
     for _, r in holdout_df.iterrows():
-        status_txt = (
-            "Beat ML by 18.7% lower error"
-            if "B2" in str(r["model_id"])
-            else (
-                "Lost on holdout (-27.4% bias)" if "CHAMPION" in str(r["model_id"]) else "Baseline"
+        if "CHAMPION" in str(r["model_id"]):
+            status_txt = f"ML bias {float(r['bias']):+.2%}"
+        else:
+            relative = 1 - float(r["wape"]) / float(champion_hold["wape"])
+            status_txt = (
+                f"{relative:.1%} lower error than ML"
+                if relative > 0
+                else f"{-relative:.1%} higher error than ML"
             )
-        )
         fc_md += f"| `{r['model_id']}` | {r['wape']:.4f} | {r['mae']:.2f} | {r['bias']:+.4f} | {r['total_actual']:,.0f} | {r['total_abs_error']:,.1f} | {status_txt} |\n"
 
     if ablation_path.exists():
@@ -146,12 +154,12 @@ def generate_full_report(
         for sku_k, v in bench_data.get("sku_benchmarks", {}).items():
             fc_md += f"| **{sku_k.replace('_', ' ').upper()}** | {v['training_seconds_median']:.3f}s / {v['training_seconds_slowest']:.3f}s | {v['inference_seconds_median'] * 1000:.1f}ms / {v['inference_seconds_slowest'] * 1000:.1f}ms | {v['milp_solve_seconds_median'] * 1000:.1f}ms / {v['milp_solve_seconds_slowest'] * 1000:.1f}ms |\n"
 
-    fc_md += """
+    fc_md += f"""
 ## 6. Scientific Observations & Root Cause Analysis
-1. **Validation Performance**: Direct pooled LightGBM achieved the lowest WAPE (0.6200), outperforming the strongest baseline B2 (0.6722) by 7.76% (missing the 10% stretch target O3).
-2. **Holdout Generalisation**: On the final 12-week test holdout, trailing 4-week mean baseline B2 achieved WAPE = 0.5777, outperforming LightGBM (0.7107) by 18.7%.
-3. **Distribution Shift**: Validation covered May–August 2011 (stable summer sales); holdout covered September–November 2011 (Q4 pre-holiday surge). LightGBM under-forecasted the seasonal rise (-27.36% bias), whereas the simple 4-week mean adapted faster.
-4. **No Target Leakage**: All models were frozen before holdout evaluation. Historical lag updates used only closed historical prefixes.
+1. **Validation Performance**: The saved champion WAPE is {float(champion_val["wape"]):.4f} versus B2 {float(baseline_val["wape"]):.4f}, a {validation_gain:.2%} relative reduction. The 10% target is {"met" if validation_gain >= 0.10 else "missed"}.
+2. **Holdout Comparison**: B2 WAPE is {float(baseline_hold["wape"]):.4f} and the saved ML artifact WAPE is {float(champion_hold["wape"]):.4f}. Comparisons above are computed from these same saved rows.
+3. **Observed Bias**: The ML artifact's holdout bias is {float(champion_hold["bias"]):+.2%}. Seasonal transfer is a hypothesis consistent with the Q4 evaluation period, not a measured causal explanation.
+4. **Evaluation Boundary**: Historical lags use closed prefixes. D21 discloses the refit-selection defect. Reproduction of this already viewed holdout is not a new untouched evaluation.
 """
     with open(rep_dir / "forecast_comparison.md", "w", encoding="utf-8") as f:
         f.write(fc_md)
@@ -195,6 +203,7 @@ def generate_full_report(
     if stress_path.exists():
         str_df = pd.read_csv(stress_path)
         inv_md += "\n## 4. Budget Stress Scenarios ($0.6\\times, 1.0\\times, 1.4\\times$)\n"
+        inv_md += "\nThese are separately recorded stress runs. Their 1.0x row is not the source of the current main-holdout headline; solver timing and run provenance differ.\n\n"
         inv_md += "| Budget Multiplier | Policy | Weekly Budget (SCU) | Net Cost (SCU) | Fill Rate | Unmet Units | Breaches | Unproven Solves |\n"
         inv_md += "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
         for _, r in str_df.iterrows():

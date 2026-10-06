@@ -200,3 +200,13 @@ Commit `568d4ba` ticked T19-T30 on unit tests alone. Statuses below reflect end-
 
 - [x] **T33 — Make the v0.2 champion servable (D25)**
   - P50 bundle in `artifacts/v02/`. CLI and API share `build_inference_features`; v0.1 demo forecasts unchanged (max diff 0.0). `DEMANDGUARD_MODEL=v02` is whitelisted; `tests/test_api.py::test_api_model_selection_rejects_untrusted_names`.
+
+
+## Portfolio remediation: 6 October 2026
+
+Reporting regression reproduces and removes stale hard-coded scores. Current CSV summaries reconcile independently for WAPE, unit balance, cost components and fill rate. Reports/plots and current README/model-card section use the evidence manifest. Earlier stress/v0.2 runs remain historical. D21 legacy refit defect and missed O3/O5 remain disclosed. Runtime smoke CI prepared; local Docker/public 404 repair pending.
+
+- [x] Verified local remediation evidence recorded.
+- [ ] Remaining applicable runtime/publication/hosting gates verified.
+
+- [x] Actual Linux container build/readiness/functional verification completed locally.

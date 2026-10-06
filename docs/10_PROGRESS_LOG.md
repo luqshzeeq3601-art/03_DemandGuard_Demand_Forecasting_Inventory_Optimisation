@@ -113,3 +113,15 @@ Remaining: T22 online bias correction is unevaluated, because no unbiased bias s
 5. **Portfolio Alignment**:
    - Updated `Classical_ML_Portfolio_Plan_Malaysia.xlsx` `Engineer Checklist` for P3 to 8/8 (100% complete).
    - Test suite passing: 47/47 pytest tests, 0 Ruff lint errors, 0 format issues.
+
+
+## 6 October 2026: portfolio remediation execution
+
+Reporting regression reproduces and removes stale hard-coded scores. Current CSV summaries reconcile independently for WAPE, unit balance, cost components and fill rate. Reports/plots and current README/model-card section use the evidence manifest. Earlier stress/v0.2 runs remain historical. D21 legacy refit defect and missed O3/O5 remain disclosed. Runtime smoke CI prepared; local Docker/public 404 repair pending.
+
+Evidence: local branch fix/portfolio-remediation; preserved originals and receipts under the workspace .portfolio-audit/2026-10-06/remediation folder. No remote push, merge, external post or cloud deployment was performed.
+
+
+### Container verification completed: 6 October 2026
+
+The repaired Linux image built, started, passed readiness and its functional inference/reorder/recommendation checks. Only task-owned containers were removed, and original model mounts were read-only. This supersedes the earlier local-Docker pending note. Candidate GitHub execution and public hosting remain pending. Evidence: workspace .portfolio-audit/2026-10-06/remediation/docker.
