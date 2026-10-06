@@ -1,0 +1,36 @@
+{
+  "initial_raw_rows": 1067371,
+  "initial_raw_units": 10608492,
+  "exclusions": {
+    "missing_essentials": {
+      "rows": 0,
+      "units": 0
+    },
+    "cancellations": {
+      "rows": 19494,
+      "units": -490992
+    },
+    "nonpositive_quantity": {
+      "rows": 3457,
+      "units": -573085
+    },
+    "nonpositive_or_nan_price": {
+      "rows": 2750,
+      "units": 252264
+    },
+    "nonmerchandise_codes": {
+      "rows": 4307,
+      "units": 17247
+    },
+    "non_target_country": {
+      "rows": 81239,
+      "units": 2031648
+    },
+    "exact_duplicates_retained_as_legit_transactions": {
+      "rows": 32412,
+      "units": 195350
+    }
+  },
+  "final_clean_rows": 956124,
+  "final_clean_units": 9371410
+}

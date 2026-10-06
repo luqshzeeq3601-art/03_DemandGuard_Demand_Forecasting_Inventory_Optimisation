@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+src/demandguard/__init__.py
+src/demandguard/cli.py
+src/demandguard.egg-info/PKG-INFO
+src/demandguard.egg-info/SOURCES.txt
+src/demandguard.egg-info/dependency_links.txt
+src/demandguard.egg-info/entry_points.txt
+src/demandguard.egg-info/requires.txt
+src/demandguard.egg-info/top_level.txt
+tests/test_environment_and_solver.py

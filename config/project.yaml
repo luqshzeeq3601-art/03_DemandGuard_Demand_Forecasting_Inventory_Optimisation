@@ -1,0 +1,48 @@
+data:
+  source_landing_url: "https://archive.ics.uci.edu/dataset/502/online+retail+ii"
+  source_download_url: "https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip"
+  raw_excel_path: "data/raw/online_retail_II.xlsx"
+  raw_zip_path: "data/raw/online_retail_II.zip"
+  source_manifest_path: "data/raw/source_manifest.json"
+  weekly_sales_path: "data/processed/weekly_sales.parquet"
+  cohort_path: "data/processed/cohort.json"
+  split_manifest_path: "data/processed/split_manifest.json"
+  features_path: "data/processed/features.parquet"
+  country: "United Kingdom"
+  target_column: "units_sold"
+
+cohort:
+  prefix_weeks: 60
+  min_active_prefix_weeks: 40
+  first_active_window_weeks: 8
+  max_products: 30
+  min_products: 10
+  min_total_weeks: 100
+
+splits:
+  horizon_weeks: 4
+  validation_origins_offset: [28, 24, 20, 16]  # N - offset
+  test_origins_offset: [12, 8, 4]             # N - offset
+  final_training_cutoff_offset: 12            # c0 = N - 12
+  holdout_target_weeks: 12                    # N - 11 .. N
+
+features:
+  history_required_weeks: 60
+  lag_offsets: [0, 1, 2, 3, 7, 12, 25, 51]
+  rolling_windows: [4, 13, 26]
+
+forecast:
+  seed: 42
+  candidates: ["B1", "B2", "B3", "B4", "M1"]
+  clip_negative: true
+  selection_metric: "wape"
+  simplicity_tolerance: 0.01  # 1% relative WAPE
+  target_wape_reduction: 0.10 # 10% target reduction over strongest baseline
+  lightgbm_grid:
+    learning_rate: [0.03, 0.08]
+    n_estimators: [50, 100]
+    num_leaves: [15, 31]
+    min_child_samples: [5, 10]
+  arima:
+    candidate_orders: [[1, 1, 1], [1, 0, 0]]
+    fallback: "B2"

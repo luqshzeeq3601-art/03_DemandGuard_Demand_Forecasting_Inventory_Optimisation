@@ -1,0 +1,189 @@
+{
+  "prefix_start_date": "2009-12-07",
+  "prefix_end_date": "2011-02-07",
+  "prefix_weeks_count": 60,
+  "selection_rule": "Positive sale in first 8 weeks, >=40 active sales weeks in first 60 weeks, ranked by total prefix units descending (tie-break sku_id asc), max 30 SKUs.",
+  "selected_skus_count": 30,
+  "cohort": [
+    {
+      "sku_id": "85123A",
+      "total_prefix_units": 61505,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "84077",
+      "total_prefix_units": 59947,
+      "active_prefix_weeks": 59,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "17003",
+      "total_prefix_units": 52371,
+      "active_prefix_weeks": 55,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "21212",
+      "total_prefix_units": 51355,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "85099B",
+      "total_prefix_units": 49303,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "84879",
+      "total_prefix_units": 44752,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "22197",
+      "total_prefix_units": 34084,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "84991",
+      "total_prefix_units": 29687,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "21977",
+      "total_prefix_units": 27974,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "21232",
+      "total_prefix_units": 26414,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "21982",
+      "total_prefix_units": 26309,
+      "active_prefix_weeks": 50,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "21213",
+      "total_prefix_units": 24036,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "84755",
+      "total_prefix_units": 23383,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "84347",
+      "total_prefix_units": 23296,
+      "active_prefix_weeks": 40,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "84270",
+      "total_prefix_units": 21749,
+      "active_prefix_weeks": 50,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "84946",
+      "total_prefix_units": 21413,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "15036",
+      "total_prefix_units": 20932,
+      "active_prefix_weeks": 58,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "84568",
+      "total_prefix_units": 20895,
+      "active_prefix_weeks": 52,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "85099F",
+      "total_prefix_units": 20674,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "21980",
+      "total_prefix_units": 19587,
+      "active_prefix_weeks": 59,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "84992",
+      "total_prefix_units": 19464,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "71459",
+      "total_prefix_units": 19421,
+      "active_prefix_weeks": 59,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "20725",
+      "total_prefix_units": 19366,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "22178",
+      "total_prefix_units": 19187,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "85099C",
+      "total_prefix_units": 18312,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "21985",
+      "total_prefix_units": 18300,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "22386",
+      "total_prefix_units": 18066,
+      "active_prefix_weeks": 54,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "21080",
+      "total_prefix_units": 17473,
+      "active_prefix_weeks": 60,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "21984",
+      "total_prefix_units": 17333,
+      "active_prefix_weeks": 57,
+      "has_sale_in_first_8_weeks": true
+    },
+    {
+      "sku_id": "22086",
+      "total_prefix_units": 17330,
+      "active_prefix_weeks": 45,
+      "has_sale_in_first_8_weeks": true
+    }
+  ]
+}

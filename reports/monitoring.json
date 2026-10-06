@@ -1,0 +1,16 @@
+{
+  "timestamp_utc": "2026-10-05T18:35:44.654132+00:00",
+  "total_rows": 130,
+  "unique_skus": 2,
+  "anomalies": [
+    "Demand scale drift detected: current mean (49.4) deviates significantly from reference (426.1)."
+  ],
+  "scale_metrics": {
+    "current_mean_units": 49.43846153846154,
+    "current_std_units": 15.058544071482237,
+    "reference_mean_units": 426.062091503268,
+    "reference_std_units": 677.7274445637746,
+    "mean_ratio_to_reference": 0.11603581385057894
+  },
+  "status": "WARNING"
+}

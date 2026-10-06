@@ -1,0 +1,27 @@
+# Environments and caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.pytest_tmp/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local experiment runs and tracking
+mlruns/
+mlartifacts/
+mlflow.db
+
+# Data directories (raw source and large processed files tracked via manifest/scripts)
+data/raw/online_retail_II.xlsx
+data/raw/*.xlsx
+data/raw/*.csv
+data/raw/*.zip
+data/processed/*.parquet
+
+# OS files
+.DS_Store
+Thumbs.db

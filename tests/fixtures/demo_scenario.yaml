@@ -1,0 +1,15 @@
+# Synthetic demo scenario for CLI and API checks
+scenario:
+  currency_unit: "SCU"
+  lead_time_weeks: 1
+  review_interval_weeks: 1
+  horizon_weeks: 4
+  warehouse_capacity_slots: 5000
+  weekly_budgets_scu: [2000.0, 2000.0, 2000.0, 2000.0]
+  purchase_cost_scu: 1.0
+  holding_cost_scu_per_unit_week: 0.02
+  unmet_penalty_scu_per_unit: 5.0
+  safety_deficit_penalty_scu_per_unit: 0.5
+  storage_slots_per_unit: 1.0
+  terminal_value_fraction: 0.5
+  solver_time_limit_seconds: 10

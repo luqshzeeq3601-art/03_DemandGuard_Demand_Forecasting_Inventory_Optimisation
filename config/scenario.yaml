@@ -1,0 +1,18 @@
+scenario:
+  currency_unit: "SCU"
+  lead_time_weeks: 1
+  review_interval_weeks: 1
+  horizon_weeks: 4
+  purchase_cost_scu: 1.0
+  holding_cost_scu_per_unit_week: 0.02
+  unmet_penalty_scu_per_unit: 5.0
+  safety_deficit_penalty_scu_per_unit: 0.5
+  storage_slots_per_unit: 1.0
+  terminal_value_fraction: 0.5
+  safety_stock_k_candidates: [0.0, 1.0, 1.645]
+  default_safety_stock_k: 1.0
+  budget_multipliers: [0.6, 1.0, 1.4]
+  default_budget_multiplier: 1.0
+  warmup_weeks_for_stats: 13
+  solver_time_limit_seconds: 10
+  cost_reduction_target: 0.05  # 5% cost reduction target over P0

@@ -1,0 +1,99 @@
+Metadata-Version: 2.4
+Name: demandguard
+Version: 0.1.0
+Summary: Demand forecasting and inventory replenishment optimization system
+Requires-Python: <3.13,>=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: duckdb>=0.10.0
+Requires-Dist: fastapi>=0.110.0
+Requires-Dist: lightgbm>=4.3.0
+Requires-Dist: matplotlib>=3.8.0
+Requires-Dist: mlflow>=2.11.0
+Requires-Dist: numpy<2.0.0,>=1.26.0
+Requires-Dist: openpyxl>=3.1.2
+Requires-Dist: pandas>=2.2.0
+Requires-Dist: pulp>=2.8.0
+Requires-Dist: pydantic>=2.6.0
+Requires-Dist: pyarrow>=15.0.0
+Requires-Dist: pyyaml>=6.0.1
+Requires-Dist: scikit-learn>=1.4.0
+Requires-Dist: statsmodels>=0.14.0
+Requires-Dist: uvicorn>=0.28.0
+Provides-Extra: dev
+Requires-Dist: httpx>=0.27.0; extra == "dev"
+Requires-Dist: pytest>=8.0.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.1.0; extra == "dev"
+Requires-Dist: ruff>=0.3.0; extra == "dev"
+
+# DemandGuard: Demand Forecasting and Inventory Optimisation
+
+## 1. What this project does
+
+DemandGuard forecasts weekly product sales and recommends how many units to reorder while respecting a purchasing budget and storage capacity. It connects a machine learning prediction to a practical inventory decision.
+
+- **Portfolio project:** 3, from `Project Tracker!A6:F6` in `../Classical_ML_Portfolio_Plan_Malaysia.xlsx`.
+- **Current status:** planning complete; implementation, dataset download, training and evaluation have not started.
+- **Planning date:** 6 October 2026, Malaysia time.
+- **Project owner:** user. Execution role: senior ML engineer and project manager.
+- **MVP:** one warehouse, up to 30 established products, weekly decisions and a four-week forecast horizon.
+
+## 2. Problem and intended outcome
+
+Ordering too little can leave customer requests unfilled. Ordering too much ties up cash and storage. A forecast alone does not decide what to buy when several products compete for the same budget.
+
+The intended output is a reorder worklist with product, forecast, current stock, incoming deliveries, recommended quantity, expected spend and constraint warnings. Historical sales support forecast evaluation. Inventory outcomes will be measured in a simulation with explicit assumptions.
+
+## 3. Start here
+
+1. Read [AGENTS.md](AGENTS.md) for execution rules.
+2. Read [the execution guide](docs/00_START_HERE.md).
+3. Read [the problem and objectives](docs/01_PROBLEM_AND_OBJECTIVES.md) and [PRD](docs/02_PRD.md).
+4. Follow [the project plan](tasks/plan.md) and [task checklist](tasks/todo.md).
+
+These documents are the implementation handoff. A future session should not need this chat or the previous projects to establish scope.
+
+## 4. Planned technology
+
+| Area | Choice | Purpose |
+| --- | --- | --- |
+| Runtime | Python 3.12, isolated environment | CPU-only local development |
+| Data | pandas, DuckDB SQL, Parquet | Cleaning, aggregation and repeatable data checks |
+| Forecasts | Simple rules, statsmodels ARIMA, LightGBM | Baselines and a pooled direct forecasting model |
+| Optimisation | PuLP with a verified CBC solver | Whole-unit reorder decisions under constraints |
+| Experiment tracking | Local MLflow | Parameters, metrics and artifact provenance |
+| Delivery | CLI, FastAPI, Docker | Repeatable batch runs and local serving |
+| Quality | pytest, Ruff, GitHub Actions | Scientific and engineering checks |
+| Reporting | Matplotlib and Markdown | Forecast plots, scenario comparisons and model card |
+
+Exact dependency versions will be resolved and locked in T01. None of these dependencies have been installed by this planning task.
+
+## 5. Documentation map
+
+| File | Responsibility |
+| --- | --- |
+| [00_START_HERE](docs/00_START_HERE.md) | Reading order, first session and restart instructions |
+| [01_PROBLEM_AND_OBJECTIVES](docs/01_PROBLEM_AND_OBJECTIVES.md) | Problem, users, measurable objectives and claim limits |
+| [02_PRD](docs/02_PRD.md) | Scope, user stories, requirements and acceptance criteria |
+| [03_DATA_SPEC](docs/03_DATA_SPEC.md) | Sources, schema, cleaning, cohort and split contracts |
+| [04_TECHNICAL_DESIGN](docs/04_TECHNICAL_DESIGN.md) | Components, artifacts and API contracts |
+| [05_FORECAST_EXPERIMENT_PLAN](docs/05_FORECAST_EXPERIMENT_PLAN.md) | Features, baselines, model selection and holdout |
+| [06_INVENTORY_OPTIMISATION](docs/06_INVENTORY_OPTIMISATION.md) | Decision timing, mathematical model and simulation |
+| [07_VALIDATION_AND_RELEASE](docs/07_VALIDATION_AND_RELEASE.md) | Required tests, evidence and release gates |
+| [08_OPERATIONS_AND_COMMANDS](docs/08_OPERATIONS_AND_COMMANDS.md) | Planned commands and local operation |
+| [09_DECISIONS_LOG](docs/09_DECISIONS_LOG.md) | Chosen defaults and changes |
+| [10_PROGRESS_LOG](docs/10_PROGRESS_LOG.md) | What exists, what was verified and what is next |
+| [11_SOURCES](docs/11_SOURCES.md) | Workbook evidence and verified external references |
+| [tasks/plan](tasks/plan.md) | Milestones, dependencies, estimates and risks |
+| [tasks/todo](tasks/todo.md) | Sole implementation task tracker |
+
+## 6. Important interpretation
+
+- Forecasts estimate recorded sales as a proxy for demand; unobserved demand cannot be recovered from this dataset.
+- Inventory, procurement costs, budgets and lead times are scenario inputs. They are not observed facts about the retailer.
+- Performance targets are hypotheses. Results and business improvements are **not measured yet**.
+- The Malaysian employer mapping comes from the supplied workbook. This task did not verify whether those vacancies remain open.
+- Public hosting and a dashboard are later options. The first release is a local, reproducible demonstrator.
+
+## 7. Next execution request
+
+> Start DemandGuard by reading AGENTS.md and docs/00_START_HERE.md. Follow tasks/todo.md from T01, verify each checkpoint, and update the progress and decisions logs. Use these Markdown files as the project specification.

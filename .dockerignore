@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.pytest_tmp/
+.ruff_cache/
+.coverage
+htmlcov/
+data/raw/
+data/processed/
+mlruns/
+mlartifacts/
+mlflow.db
+.git/
