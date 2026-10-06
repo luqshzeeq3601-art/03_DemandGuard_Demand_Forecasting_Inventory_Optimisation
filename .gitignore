@@ -1,9 +1,32 @@
 # Environments and caches
 .venv/
+env/
+venv/
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution and packaging
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing and linting
 .pytest_cache/
 .pytest_tmp/
 .ruff_cache/
@@ -14,6 +37,7 @@ htmlcov/
 mlruns/
 mlartifacts/
 mlflow.db
+.system_generated/
 
 # Data directories (raw source and large processed files tracked via manifest/scripts)
 data/raw/online_retail_II.xlsx
@@ -22,6 +46,9 @@ data/raw/*.csv
 data/raw/*.zip
 data/processed/*.parquet
 
-# OS files
+# OS / Editor
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/
+*.swp

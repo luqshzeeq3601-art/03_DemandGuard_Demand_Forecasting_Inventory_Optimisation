@@ -1,6 +1,15 @@
 # DemandGuard: Demand Forecasting & Inventory Replenishment Optimisation
 
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![LightGBM](https://img.shields.io/badge/LightGBM-4.5+-FF9900.svg?style=flat)](https://lightgbm.readthedocs.io/)
+[![PuLP](https://img.shields.io/badge/PuLP-2.9+-4B8BBE.svg?style=flat)](https://coin-or.github.io/pulp/)
+[![DuckDB](https://img.shields.io/badge/DuckDB-1.1+-FFF000.svg?style=flat&logo=duckdb&logoColor=black)](https://duckdb.org/)
+[![Tests](https://img.shields.io/badge/pytest-47%20passed-brightgreen.svg?style=flat&logo=pytest&logoColor=white)](tests/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat)](LICENSE)
+
 DemandGuard is a production-grade machine learning and operations research system designed to forecast weekly product demand and solve constrained integer purchase replenishment plans.
+
 
 ```mermaid
 flowchart LR
@@ -189,3 +198,11 @@ py -3.11 -m venv .venv
 ```
 
 `test_holdout_evaluation_structure` is skipped unless the gitignored panel exists (steps 1-3). The API serves `artifacts/champion` by default; set `DEMANDGUARD_MODEL=v02` to serve the v0.2 bundle.
+
+---
+
+## 5. License & Attribution
+
+- **License**: [MIT License](LICENSE) — free for academic, personal, and commercial usage.
+- **Data Source**: UCI Machine Learning Repository — [Online Retail II Dataset](https://archive.ics.uci.edu/dataset/502/online+retail+ii).
+
