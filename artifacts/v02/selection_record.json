@@ -27,6 +27,6 @@
   "blend_ml_weight": 0.5,
   "safety_stock_k": 1.0,
   "final_training_cutoff_date": "2011-09-05",
-  "code_revision": "568d4ba+uncommitted",
-  "created_at_utc": "2026-10-06T04:19:28.227610+00:00"
+  "code_revision": "736f257",
+  "created_at_utc": "2026-10-06T04:26:11.785906+00:00"
 }
