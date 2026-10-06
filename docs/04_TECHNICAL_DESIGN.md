@@ -55,10 +55,11 @@ tests/fixtures/               # Small synthetic inputs with known answers
 tests/                        # Focused unit and integration checks
 data/raw/                     # Immutable source and provenance
 data/processed/               # Weekly panel, cohort and split manifests
-artifacts/champion/           # Trusted, versioned model bundle
+artifacts/champion/           # Trusted v0.1 model bundle (default)
+artifacts/v02/                # Trusted v0.2 P50 bundle (DEMANDGUARD_MODEL=v02)
 reports/                      # Metrics, predictions, simulation and plots
 Dockerfile
-.github/workflows/ci.yml
+ci/ci.yml                     # Inactive copy; move to .github/workflows/ to enable (token needs workflow scope)
 ```
 
 ## 3. Dependency choices

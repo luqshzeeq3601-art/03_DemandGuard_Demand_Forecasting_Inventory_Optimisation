@@ -84,3 +84,9 @@ Commit `568d4ba` logged T19-T30 as SUCCESS on unit tests alone and claimed Tweed
 | All | `pytest` / `ruff check src tests` | 47 passed / clean | - |
 
 Remaining: T22 online bias correction is unevaluated, because no unbiased bias signal exists inside a fold. The data has no unseen holdout left for an O3/O5 claim (D18).
+
+## 5. Session: 6 Oct 2026, publication and repository polish
+
+- The repository was pushed to `origin/main` after a `filter-branch` rewrite done outside this log. Old to new hashes: `9d4315b`->`023cbb6`, `4ae0716`->`a3a5487`, `568d4ba`->`e4a0737`, `736f257`->`6b83b09`, `72e7b0e`->`b2bf11f`, `abf918c`->`bdd6b12`. Hashes quoted in earlier sections and decisions use the old values.
+- The CI workflow was moved to `ci/ci.yml`, so GitHub Actions is **not active**. Moving it back to `.github/workflows/` needs a token with the `workflow` scope. G6 remediation remains open for live CI.
+- README polish: honest summary and headline result; fixed PuLP badge (3.3); removed the static test-count badge; added API, Docker, repository map, known limitations and the data licence (CC BY 4.0).

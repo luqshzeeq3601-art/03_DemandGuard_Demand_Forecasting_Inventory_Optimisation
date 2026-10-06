@@ -3,12 +3,13 @@
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![LightGBM](https://img.shields.io/badge/LightGBM-4.5+-FF9900.svg?style=flat)](https://lightgbm.readthedocs.io/)
-[![PuLP](https://img.shields.io/badge/PuLP-2.9+-4B8BBE.svg?style=flat)](https://coin-or.github.io/pulp/)
+[![PuLP](https://img.shields.io/badge/PuLP-3.3-4B8BBE.svg?style=flat)](https://coin-or.github.io/pulp/)
 [![DuckDB](https://img.shields.io/badge/DuckDB-1.1+-FFF000.svg?style=flat&logo=duckdb&logoColor=black)](https://duckdb.org/)
-[![Tests](https://img.shields.io/badge/pytest-47%20passed-brightgreen.svg?style=flat&logo=pytest&logoColor=white)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat)](LICENSE)
 
-DemandGuard is a production-grade machine learning and operations research system designed to forecast weekly product demand and solve constrained integer purchase replenishment plans.
+DemandGuard tests one question: **can a time-aware sales forecast support better weekly purchasing decisions than a simple reorder rule under the same budget and storage limits?** It forecasts four weeks of demand for 30 established products from the UCI Online Retail II data, then uses a mixed-integer program (PuLP/CBC) to recommend whole-unit orders. A 12-week simulation then compares the recommendations against a constrained rule.
+
+**Headline result (honest):** LightGBM beat the 4-week moving average on validation but lost on the 12-week test window. The best optimised policy saved 0.85% of simulated cost against the rule, short of the 5% target. Costs are synthetic scenario units (SCU), not real money. Section 1 has the full objective scorecard; section 6 lists the limitations.
 
 
 ```mermaid
@@ -30,7 +31,7 @@ flowchart LR
 | :--- | :--- | :--- | :--- | :--- | :---: | :--- |
 | **O1** | Trustworthy Weekly Data | Reconciled, leak-free panel from raw transactions | 100+ weeks, $\ge 10$ SKUs | 102 complete weeks, 30 SKUs, 9,013,090 panel units | ⚠️ **Mostly Met** | Panel is 100% verified. Gap of 358,320 units from clean data (9,371,410) is due to dropping partial boundary weeks (Dec 1–6, 2009 & Dec 5–9, 2011). |
 | **O2** | 4-Week Forecasts | Nonnegative, finite multi-step predictions | 100% coverage, breakdown reporting | 480 val + 360 holdout predictions | ⚠️ **Mostly Met** | Predictions exist and are valid; granular breakdowns by horizon and SKU provided in reports. |
-| **O3** | ML Forecast Superiority | LightGBM outperforms best simple baseline | $\ge 10\%$ WAPE reduction | Val: +7.76% (0.6200 vs 0.6722)<br>Holdout: -23.0% (0.7107 vs 0.5777)<br>v0.2 M2_q50: val +12.1%; test (exploratory) -9.3% | ❌ **Missed (Stretch)** | **Missed**: LightGBM failed to beat the trailing 4-week mean on the 12-week test holdout. |
+| **O3** | ML Forecast Superiority | LightGBM outperforms best simple baseline | $\ge 10\%$ WAPE reduction | Val: +7.76% (0.6200 vs 0.6722)<br>Holdout: -23.0% (0.7107 vs 0.5777)<br>v0.2 M2_q50: val +12.1%; test (exploratory) -9.3% | ❌ **Missed (Stretch)** | **Missed**: v0.1 LightGBM lost to the trailing 4-week mean on the test window. v0.2 cleared 10% on validation only; it also lost on the (already viewed) test window. |
 | **O4** | Feasible Orders | Physical & financial constraints strictly respected | 0 breaches, integer orders | 0 capacity breaches, 0 budget violations across all 12 weeks | ✅ **Met** | Pre-demand bounds and committed-order arrival space protection ($I_0 + A_1 + Q_1 \le C$) verified. |
 | **O5** | Inventory Cost Reduction | Optimised replenishment reduces total supply chain cost | $\ge 5\%$ cost reduction, $\ge$ fill rate | P1: -0.85% (335.1k vs 338.0k SCU), fill 70.16% vs 69.66%<br>P2: +7.61% cost | ❌ **Missed (Stretch)** | **Missed**: re-measured with the reproducible solver (D23). The published 1.52% figure came from time-limited solves (D22). The ML-driven P2 increased cost. |
 | **O6** | Reproducible Engineering | Test suite, linting, CLI, API, container & CI | Passing tests, clean lint, verified contracts | 47 passing tests, clean Ruff lint, API & container verified | ⚠️ **Mostly Met** | Unit/integration tests pass. Local git initialized; live remote CI requires external runner. |
@@ -190,6 +191,29 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m demandguard.cli monitor --history tests/fixtures/demo_history.csv --output reports/monitoring.json
 ```
 
+### Serve the API
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn demandguard.api:app --host 127.0.0.1 --port 8000
+```
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Liveness |
+| GET | `/ready` | Model artifact and CBC solver readiness |
+| POST | `/forecast` | 4-week forecasts from at least 60 weeks of history per SKU |
+| POST | `/reorder` | Validated integer reorder worklist; no orders if the solve is not proven optimal |
+| POST | `/reorder/async`, GET `/jobs/{job_id}` | Background reorder job (in-memory; lost on restart) |
+
+Interactive schema: `http://127.0.0.1:8000/docs`. Set `DEMANDGUARD_MODEL=v02` to serve the v0.2 bundle; only `champion` (default) and `v02` are accepted.
+
+### Docker
+```powershell
+docker build -t demandguard .
+docker run -p 8000:8000 demandguard
+```
+
+The image bundles the trusted artifacts in `artifacts/`. The Docker build has not been verified on this machine (Docker daemon unavailable when last checked).
+
 ### Run Test Suite
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -v
@@ -201,8 +225,30 @@ py -3.11 -m venv .venv
 
 ---
 
-## 5. License & Attribution
+## 5. Repository Map
+
+| Path | Contents |
+| --- | --- |
+| `src/demandguard/` | Package: data, splits, features, model, baselines, evaluation, inventory (MILP), policies, simulation, monitoring, reporting, CLI, API |
+| `config/` | Project and inventory scenario settings |
+| `queries/` | DuckDB weekly aggregation SQL |
+| `artifacts/champion`, `artifacts/v02` | Frozen model bundles and selection records |
+| `reports/` | Measured metrics, plots and generated reports |
+| `docs/` | Specs (`00`-`08`), decisions (`09`), progress log (`10`), sources (`11`), model card |
+| `tasks/` | Plan and task checklist |
+| `ci/ci.yml` | GitHub Actions workflow (not active; see section 6) |
+
+## 6. Known Limitations
+
+- **No unseen test period remains.** The data ends 2011-11-28, and the v0.1 test window has been viewed, so v0.2 test numbers are exploratory only (D18).
+- **Simulated outcomes only.** Costs, budgets, capacity and penalties are invented scenario inputs. Recorded sales stand in for demand, and there are no stock-availability records.
+- **Fixed catalogue.** 30 established UK products; no cold-start products. Results do not transfer to other markets or currencies.
+- **Stochastic optimiser not executable.** It cannot prove a solution within the 10s limit (D23), so it places no orders.
+- **Solver tolerance.** Plans are proven within a 0.1% optimality gap, not exactly optimal (D23).
+- **CI not active.** The workflow lives in `ci/ci.yml`. To enable it, move it to `.github/workflows/ci.yml` using a GitHub token with the `workflow` scope.
+
+## 7. License & Attribution
 
 - **License**: [MIT License](LICENSE) — free for academic, personal, and commercial usage.
-- **Data Source**: UCI Machine Learning Repository — [Online Retail II Dataset](https://archive.ics.uci.edu/dataset/502/online+retail+ii).
+- **Data Source**: UCI Machine Learning Repository — [Online Retail II Dataset](https://archive.ics.uci.edu/dataset/502/online+retail+ii), licensed CC BY 4.0. Raw data is not redistributed; `acquire` downloads it and checks its SHA-256.
 
