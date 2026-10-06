@@ -38,7 +38,7 @@ Dates refer to the source retailer's calendar. Malaysia time is used for plannin
 6. Aggregate remaining quantities to a Monday-start, Sunday-end product week. Exclude partial first/last source weeks globally.
 7. Zero-fill a missing SKU sale row only within a confirmed covered calendar week. A globally missing source week is a data-quality problem, not evidence of zero demand.
 
-Reconcile raw kept quantities -> cleaned quantities -> weekly quantities exactly. Write `reports/data_quality.md` and a machine-readable exclusion audit.
+Reconcile raw kept quantities -> cleaned quantities -> weekly quantities exactly. (Clean transactions: 9,371,410 units; 102 complete Monday–Sunday weeks panel: 9,013,090 units; difference of 358,320 units is exactly accounted for by excluding incomplete start week Dec 1–6, 2009 [140,542 units] and incomplete end week Dec 5–9, 2011 [217,778 units]). Write `reports/data_quality.md` and a machine-readable exclusion audit.
 
 ## 5. Cohort selection without future information
 

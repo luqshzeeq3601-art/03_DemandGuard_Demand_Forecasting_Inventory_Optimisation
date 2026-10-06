@@ -15,6 +15,7 @@ import pyarrow.parquet as pq
 import yaml
 
 from demandguard.baselines import (
+    forecast_b4_arima,
     generate_baseline_predictions_for_origin,
 )
 from demandguard.contracts import ProductInventoryInput
@@ -23,6 +24,7 @@ from demandguard.inventory import (
     solve_inventory_milp,
 )
 from demandguard.model import DemandGuardModel
+from demandguard.monitoring import monitor_input_data_quality
 from demandguard.policies import compute_p0_order_quantities
 from demandguard.simulation import (
     ProductInventoryState,
@@ -797,3 +799,599 @@ def run_holdout_simulation(
     print(summary_df.to_string(index=False))
 
     return {"simulation_metrics": summary_df.to_dict(orient="records")}
+
+
+def run_budget_stress_scenarios(
+    config_path: str = "config/project.yaml",
+    scenario_path: str = "config/scenario.yaml",
+    multipliers: list[float] | None = None,
+) -> pd.DataFrame:
+    """Run 12-week continuous simulations across 0.6x, 1.0x, 1.4x budget multipliers."""
+    if multipliers is None:
+        multipliers = [0.6, 1.0, 1.4]
+
+    with open(config_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    with open(scenario_path, "r", encoding="utf-8") as f:
+        scen_cfg = yaml.safe_load(f)
+
+    data_cfg = cfg["data"]
+    splits_path = Path(data_cfg["split_manifest_path"])
+    sales_path = Path(data_cfg["weekly_sales_path"])
+
+    with open(splits_path, "r", encoding="utf-8") as f:
+        splits = json.load(f)
+
+    cohort_skus = splits["cohort_skus"]
+    holdout_weeks = splits["holdout_target_weeks"]
+    panel_df = pd.read_parquet(sales_path)
+    feat_df = pd.read_parquet(data_cfg["features_path"])
+    champion_model, _ = DemandGuardModel.load_bundle("artifacts/champion")
+    panel_dict = panel_df.set_index(["sku_id", "week_start"])["units_sold"].to_dict()
+
+    holdout_start_date = pd.to_datetime(holdout_weeks[0]).date()
+    pre_weeks = [
+        w
+        for w in sorted(panel_df["week_start"].unique())
+        if pd.to_datetime(w).date() < holdout_start_date
+    ]
+    warmup_13 = pre_weeks[-13:]
+
+    means_13 = {}
+    stds_13 = {}
+    for sku in cohort_skus:
+        vals = [panel_dict.get((sku, pd.to_datetime(w).date()), 0) for w in warmup_13]
+        means_13[sku] = float(np.mean(vals))
+        stds_13[sku] = float(np.std(vals, ddof=1)) if len(vals) > 1 else 0.0
+
+    total_mean_units = sum(means_13.values())
+    base_budget = float(
+        np.ceil(total_mean_units * scen_cfg["scenario"].get("purchase_cost_scu", 1.0))
+    )
+    warehouse_capacity = int(
+        max(sum(np.ceil(2.0 * m) for m in means_13.values()), np.ceil(3.0 * total_mean_units))
+    )
+
+    safety_stocks = {sku: float(np.ceil(1.0 * stds_13[sku])) for sku in cohort_skus}
+
+    all_scenario_rows = []
+
+    for mult in multipliers:
+        w_budget = float(np.ceil(base_budget * mult))
+        policies = ["P0_Rule", "P1_MILP_Baseline", "P2_MILP_Champion"]
+
+        def make_states():
+            return {
+                sku: ProductInventoryState(
+                    sku_id=sku,
+                    on_hand_units=int(np.ceil(2.0 * means_13[sku])),
+                    incoming_week_1_units=0,
+                    unit_purchase_cost_scu=scen_cfg["scenario"].get("purchase_cost_scu", 1.0),
+                    holding_cost_scu_per_unit_week=scen_cfg["scenario"].get(
+                        "holding_cost_scu_per_unit_week", 0.02
+                    ),
+                    unmet_penalty_scu_per_unit=scen_cfg["scenario"].get(
+                        "unmet_penalty_scu_per_unit", 5.0
+                    ),
+                    storage_slots_per_unit=scen_cfg["scenario"].get("storage_slots_per_unit", 1.0),
+                )
+                for sku in cohort_skus
+            }
+
+        states = {p: make_states() for p in policies}
+        step_results = {p: [] for p in policies}
+
+        for w_idx, current_week_str in enumerate(holdout_weeks):
+            current_week_date = pd.to_datetime(current_week_str).date()
+            prior_closed_week_date = current_week_date - datetime.timedelta(weeks=1)
+            prior_closed_week_str = str(prior_closed_week_date)
+            realized_demands = {
+                sku: int(panel_dict.get((sku, current_week_date), 0)) for sku in cohort_skus
+            }
+
+            hist_up_to_prior = panel_df[panel_df["week_start"] <= prior_closed_week_date]
+            trailing_4_means = {}
+            for sku in cohort_skus:
+                sub = hist_up_to_prior[hist_up_to_prior["sku_id"] == sku]["units_sold"].values
+                trailing_4_means[sku] = (
+                    float(np.mean(sub[-4:])) if len(sub) >= 4 else float(np.mean(sub))
+                )
+
+            p0_input_states = {
+                sku: {
+                    "on_hand_units": states["P0_Rule"][sku].on_hand_units,
+                    "incoming_week_1_units": states["P0_Rule"][sku].incoming_week_1_units,
+                }
+                for sku in cohort_skus
+            }
+            p0_orders = compute_p0_order_quantities(
+                current_states=p0_input_states,
+                trailing_4_means=trailing_4_means,
+                safety_stocks=safety_stocks,
+                weekly_budget_scu=w_budget,
+                warehouse_capacity_slots=warehouse_capacity,
+            )
+
+            p1_fc_matrix = {sku: [trailing_4_means[sku]] * 4 for sku in cohort_skus}
+
+            test_feat_df = (
+                feat_df[
+                    (feat_df["origin_week_start"] == prior_closed_week_str)
+                    & (feat_df["horizon"] <= 4)
+                ]
+                .copy()
+                .reset_index(drop=True)
+            )
+            if not test_feat_df.empty:
+                p2_raw_preds = champion_model.predict(test_feat_df)
+                p2_fc_matrix = {sku: [] for sku in cohort_skus}
+                for idx, r in test_feat_df.iterrows():
+                    p2_fc_matrix[r["sku_id"]].append(float(p2_raw_preds[idx]))
+            else:
+                p2_fc_matrix = p1_fc_matrix
+
+            p1_products = [
+                ProductInventoryInput(
+                    sku_id=sku,
+                    on_hand_units=states["P1_MILP_Baseline"][sku].on_hand_units,
+                    incoming_week_1_units=states["P1_MILP_Baseline"][sku].incoming_week_1_units,
+                    safety_stock_target_units=safety_stocks[sku],
+                )
+                for sku in cohort_skus
+            ]
+            _, p1_solved_orders, _ = solve_inventory_milp(
+                products=p1_products,
+                forecast_matrix=p1_fc_matrix,
+                weekly_budgets_scu=[w_budget] * 4,
+                warehouse_capacity_slots=warehouse_capacity,
+            )
+
+            p2_products = [
+                ProductInventoryInput(
+                    sku_id=sku,
+                    on_hand_units=states["P2_MILP_Champion"][sku].on_hand_units,
+                    incoming_week_1_units=states["P2_MILP_Champion"][sku].incoming_week_1_units,
+                    safety_stock_target_units=safety_stocks[sku],
+                )
+                for sku in cohort_skus
+            ]
+            _, p2_solved_orders, _ = solve_inventory_milp(
+                products=p2_products,
+                forecast_matrix=p2_fc_matrix,
+                weekly_budgets_scu=[w_budget] * 4,
+                warehouse_capacity_slots=warehouse_capacity,
+            )
+
+            for sku in cohort_skus:
+                dem = realized_demands[sku]
+                st_p0, res_p0 = step_product_inventory(
+                    states["P0_Rule"][sku],
+                    p0_orders[sku],
+                    dem,
+                    current_week_str,
+                    warehouse_capacity,
+                )
+                states["P0_Rule"][sku] = st_p0
+                step_results["P0_Rule"].append(res_p0)
+
+                st_p1, res_p1 = step_product_inventory(
+                    states["P1_MILP_Baseline"][sku],
+                    p1_solved_orders[sku][0],
+                    dem,
+                    current_week_str,
+                    warehouse_capacity,
+                )
+                states["P1_MILP_Baseline"][sku] = st_p1
+                step_results["P1_MILP_Baseline"].append(res_p1)
+
+                st_p2, res_p2 = step_product_inventory(
+                    states["P2_MILP_Champion"][sku],
+                    p2_solved_orders[sku][0],
+                    dem,
+                    current_week_str,
+                    warehouse_capacity,
+                )
+                states["P2_MILP_Champion"][sku] = st_p2
+                step_results["P2_MILP_Champion"].append(res_p2)
+
+        for pol in policies:
+            sm = compute_simulation_summary(step_results[pol], states[pol])
+            sm["budget_multiplier"] = mult
+            sm["weekly_budget_scu"] = w_budget
+            sm["policy"] = pol
+            all_scenario_rows.append(sm)
+
+    stress_df = pd.DataFrame(all_scenario_rows)
+    out_path = Path("reports/inventory_stress_scenarios.csv")
+    stress_df.to_csv(out_path, index=False)
+    print(f"Saved stress scenarios to {out_path}")
+    return stress_df
+
+
+def run_feature_ablation(config_path: str = "config/project.yaml") -> pd.DataFrame:
+    """Run validation backtests comparing (A) Lags+Calendar vs (B) Lags+Calendar+Rolling stats."""
+    with open(config_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+
+    splits_path = Path(cfg["data"]["split_manifest_path"])
+    sales_path = Path(cfg["data"]["weekly_sales_path"])
+    feat_path = Path(cfg["data"]["features_path"])
+
+    with open(splits_path, "r", encoding="utf-8") as f:
+        splits = json.load(f)
+
+    cohort_skus = splits["cohort_skus"]
+    val_origins = splits["validation_origins"]
+    panel_df = pd.read_parquet(sales_path)
+    feat_df = pd.read_parquet(feat_path)
+    panel_dict = panel_df.set_index(["sku_id", "week_start"])["units_sold"].to_dict()
+
+    lag_cal_features = [
+        "lag_0",
+        "lag_1",
+        "lag_2",
+        "lag_3",
+        "lag_7",
+        "lag_12",
+        "lag_25",
+        "lag_51",
+        "origin_week_of_year",
+        "origin_month",
+        "target_week_of_year",
+        "target_month",
+        "horizon",
+        "sku_id",
+    ]
+    all_features = [
+        "lag_0",
+        "lag_1",
+        "lag_2",
+        "lag_3",
+        "lag_7",
+        "lag_12",
+        "lag_25",
+        "lag_51",
+        "rolling_mean_4",
+        "rolling_std_4",
+        "zero_fraction_4",
+        "rolling_mean_13",
+        "rolling_std_13",
+        "zero_fraction_13",
+        "rolling_mean_26",
+        "rolling_std_26",
+        "zero_fraction_26",
+        "trend_4_4",
+        "origin_week_of_year",
+        "origin_month",
+        "target_week_of_year",
+        "target_month",
+        "horizon",
+        "sku_id",
+    ]
+
+    configs = [
+        {"config_name": "A_Lags_Calendar_Only", "features": lag_cal_features},
+        {"config_name": "B_Lags_Calendar_Rolling (Full)", "features": all_features},
+    ]
+
+    ablation_rows = []
+    for cfg_item in configs:
+        c_name = cfg_item["config_name"]
+        feats = cfg_item["features"]
+        pred_records = []
+
+        for origin_info in val_origins:
+            orig_date_str = origin_info["origin_week_start"]
+            cutoff_date_str = origin_info["training_label_cutoff"]
+            target_weeks = origin_info["target_week_starts"]
+
+            train_df = feat_df[
+                (feat_df["target_week_start"] <= cutoff_date_str)
+                & (feat_df["target_units"].notna())
+            ].copy()
+            test_df = feat_df[
+                (feat_df["origin_week_start"] == orig_date_str)
+                & (feat_df["horizon"] <= len(target_weeks))
+            ].copy()
+
+            model = DemandGuardModel(
+                params={
+                    "objective": "regression",
+                    "learning_rate": 0.05,
+                    "num_leaves": 31,
+                    "n_estimators": 80,
+                    "verbose": -1,
+                },
+                sku_categories=cohort_skus,
+                feature_names=feats,
+            )
+            model.fit(train_df)
+            preds = model.predict(test_df)
+
+            for idx, (_, row) in enumerate(test_df.iterrows()):
+                actual_val = panel_dict.get(
+                    (row["sku_id"], pd.to_datetime(row["target_week_start"]).date()), 0
+                )
+                pred_records.append({"actual": float(actual_val), "predicted": float(preds[idx])})
+
+        m = calculate_forecast_metrics(pd.DataFrame(pred_records))
+        ablation_rows.append(
+            {
+                "ablation_configuration": c_name,
+                "feature_count": len(feats),
+                "validation_wape": m["wape"],
+                "validation_mae": m["mae"],
+                "validation_bias": m["bias"],
+            }
+        )
+
+    ablation_df = pd.DataFrame(ablation_rows)
+    out_path = Path("reports/feature_ablation.csv")
+    ablation_df.to_csv(out_path, index=False)
+    print(f"Saved feature ablation to {out_path}")
+    return ablation_df
+
+
+def run_latency_benchmarks() -> dict[str, Any]:
+    """Benchmark training, inference, and MILP solve runtimes for 1, 10, and 30 SKUs."""
+    import time
+
+    feat_df = pd.read_parquet("data/processed/features.parquet")
+    with open("data/processed/cohort.json", "r", encoding="utf-8") as f:
+        cohort = [c["sku_id"] for c in json.load(f)["cohort"]]
+
+    results = {"hardware": "CPU (Local Host)", "sku_benchmarks": {}}
+
+    for n_skus in [1, 10, 30]:
+        sub_skus = cohort[:n_skus]
+        sub_train = feat_df[feat_df["sku_id"].isin(sub_skus)].copy()
+        sub_test = sub_train.head(n_skus * 4).copy()
+
+        # Training benchmark (5 runs)
+        train_times = []
+        for _ in range(5):
+            t0 = time.perf_counter()
+            m = DemandGuardModel(
+                params={"objective": "regression", "n_estimators": 80, "verbose": -1},
+                sku_categories=sub_skus,
+            )
+            m.fit(sub_train)
+            train_times.append(time.perf_counter() - t0)
+
+        # Inference benchmark (5 runs)
+        inf_times = []
+        for _ in range(5):
+            t0 = time.perf_counter()
+            _ = m.predict(sub_test)
+            inf_times.append(time.perf_counter() - t0)
+
+        # MILP Solve benchmark (5 runs)
+        products = [
+            ProductInventoryInput(sku_id=s, on_hand_units=50, incoming_week_1_units=0)
+            for s in sub_skus
+        ]
+        fc_matrix = {s: [50.0, 50.0, 50.0, 50.0] for s in sub_skus}
+        solve_times = []
+        for _ in range(5):
+            t0 = time.perf_counter()
+            _, _, _ = solve_inventory_milp(products, fc_matrix, [5000.0] * 4, 10000)
+            solve_times.append(time.perf_counter() - t0)
+
+        results["sku_benchmarks"][f"{n_skus}_skus"] = {
+            "training_seconds_median": float(np.median(train_times)),
+            "training_seconds_slowest": float(np.max(train_times)),
+            "inference_seconds_median": float(np.median(inf_times)),
+            "inference_seconds_slowest": float(np.max(inf_times)),
+            "milp_solve_seconds_median": float(np.median(solve_times)),
+            "milp_solve_seconds_slowest": float(np.max(solve_times)),
+        }
+
+    out_path = Path("reports/benchmarks.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
+    print(f"Saved benchmarks to {out_path}")
+    return results
+
+
+def run_granular_forecast_breakdowns() -> pd.DataFrame:
+    """Compute WAPE/MAE/Bias broken down by horizon (1..4) and per-SKU (30 SKUs) on holdout."""
+    preds_df = pd.read_parquet("reports/forecast_predictions.parquet")
+
+    rows = []
+    # 1. By Horizon
+    for h, grp in preds_df.groupby(["model_id", "horizon"]):
+        m = calculate_forecast_metrics(grp)
+        rows.append(
+            {
+                "breakdown_type": "horizon",
+                "model_id": h[0],
+                "horizon": int(h[1]),
+                "sku_id": "ALL",
+                "wape": m["wape"],
+                "mae": m["mae"],
+                "bias": m["bias"],
+                "count": m["count"],
+            }
+        )
+
+    # 2. By SKU (top models)
+    for s, grp in preds_df[preds_df["model_id"].isin(["M1_lgb_deep", "B2", "B1"])].groupby(
+        ["model_id", "sku_id"]
+    ):
+        m = calculate_forecast_metrics(grp)
+        rows.append(
+            {
+                "breakdown_type": "sku",
+                "model_id": s[0],
+                "horizon": 0,
+                "sku_id": s[1],
+                "wape": m["wape"],
+                "mae": m["mae"],
+                "bias": m["bias"],
+                "count": m["count"],
+            }
+        )
+
+    breakdown_df = pd.DataFrame(rows)
+    out_path = Path("reports/forecast_breakdowns.csv")
+    breakdown_df.to_csv(out_path, index=False)
+    print(f"Saved granular breakdowns to {out_path}")
+    return breakdown_df
+
+
+def run_arima_diagnostics() -> dict[str, Any]:
+    """Audit ARIMA(1,0,0) and (1,1,1) fit convergence vs fallback across all folds."""
+    with open("data/processed/split_manifest.json", "r", encoding="utf-8") as f:
+        splits = json.load(f)
+    panel_df = pd.read_parquet("data/processed/weekly_sales.parquet")
+    cohort = splits["cohort_skus"]
+
+    diagnostics = {
+        "total_evaluations": 0,
+        "arima_100_success": 0,
+        "arima_100_fallbacks": 0,
+        "arima_111_success": 0,
+        "arima_111_fallbacks": 0,
+    }
+
+    for fold in splits["validation_origins"]:
+        orig = fold["origin_week_start"]
+        for sku in cohort:
+            hist = panel_df[
+                (panel_df["sku_id"] == sku)
+                & (panel_df["week_start"] <= pd.to_datetime(orig).date())
+            ]["units_sold"].values
+
+            _, ok_100 = forecast_b4_arima(hist, 4, order=(1, 0, 0))
+            _, ok_111 = forecast_b4_arima(hist, 4, order=(1, 1, 1))
+
+            diagnostics["total_evaluations"] += 1
+            if ok_100:
+                diagnostics["arima_100_success"] += 1
+            else:
+                diagnostics["arima_100_fallbacks"] += 1
+
+            if ok_111:
+                diagnostics["arima_111_success"] += 1
+            else:
+                diagnostics["arima_111_fallbacks"] += 1
+
+    out_path = Path("reports/arima_diagnostics.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(diagnostics, f, indent=2)
+    print(f"Saved ARIMA diagnostics to {out_path}")
+    return diagnostics
+
+
+def run_k_factor_validation_grid() -> pd.DataFrame:
+    """Run validation inventory simulation across k in {0.0, 1.0, 1.645} to document k selection."""
+    with open("config/project.yaml", "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    with open("data/processed/split_manifest.json", "r", encoding="utf-8") as f:
+        splits = json.load(f)
+
+    cohort = splits["cohort_skus"]
+    panel_df = pd.read_parquet(cfg["data"]["weekly_sales_path"])
+    val_origins = splits["validation_origins"]
+    panel_dict = panel_df.set_index(["sku_id", "week_start"])["units_sold"].to_dict()
+
+    k_candidates = [0.0, 1.0, 1.645]
+    results = []
+
+    for k in k_candidates:
+        total_costs = []
+        fill_rates = []
+        breaches = 0
+
+        for fold in val_origins:
+            orig_date = pd.to_datetime(fold["origin_week_start"]).date()
+            targets = fold["target_week_starts"]
+
+            # Compute 13-week std
+            hist_before = panel_df[panel_df["week_start"] <= orig_date]
+            means = {
+                s: float(
+                    np.mean(hist_before[hist_before["sku_id"] == s]["units_sold"].values[-13:])
+                )
+                for s in cohort
+            }
+            stds = {
+                s: float(
+                    np.std(
+                        hist_before[hist_before["sku_id"] == s]["units_sold"].values[-13:], ddof=1
+                    )
+                )
+                for s in cohort
+            }
+            safeties = {s: float(np.ceil(k * stds[s])) for s in cohort}
+            budget = float(np.ceil(sum(means.values())))
+            cap = int(
+                max(sum(np.ceil(2 * m) for m in means.values()), np.ceil(3 * sum(means.values())))
+            )
+
+            states = {
+                s: ProductInventoryState(
+                    sku_id=s, on_hand_units=int(np.ceil(2 * means[s])), incoming_week_1_units=0
+                )
+                for s in cohort
+            }
+            step_res = []
+
+            for t_str in targets:
+                t_date = pd.to_datetime(t_str).date()
+                fc_matrix = {s: [means[s]] * 4 for s in cohort}
+                prods = [
+                    ProductInventoryInput(
+                        sku_id=s,
+                        on_hand_units=states[s].on_hand_units,
+                        incoming_week_1_units=states[s].incoming_week_1_units,
+                        safety_stock_target_units=safeties[s],
+                    )
+                    for s in cohort
+                ]
+                _, solved_orders, _ = solve_inventory_milp(prods, fc_matrix, [budget] * 4, cap)
+
+                for s in cohort:
+                    dem = int(panel_dict.get((s, t_date), 0))
+                    st, r = step_product_inventory(states[s], solved_orders[s][0], dem, t_str, cap)
+                    states[s] = st
+                    step_res.append(r)
+
+            sm = compute_simulation_summary(step_res, states)
+            total_costs.append(sm["net_realized_cost_scu"])
+            fill_rates.append(sm["fill_rate"])
+            breaches += sm["capacity_breaches"]
+
+        results.append(
+            {
+                "safety_stock_k": k,
+                "mean_validation_cost_scu": float(np.mean(total_costs)),
+                "mean_fill_rate": float(np.mean(fill_rates)),
+                "total_capacity_breaches": breaches,
+                "is_selected_champion_k": (k == 1.0),
+            }
+        )
+
+    k_df = pd.DataFrame(results)
+    out_path = Path("reports/k_factor_validation.csv")
+    k_df.to_csv(out_path, index=False)
+    print(f"Saved k factor validation to {out_path}")
+    return k_df
+
+
+def run_real_holdout_monitoring() -> dict[str, Any]:
+    """Execute monitoring on the actual 30-product holdout data against 60-week reference."""
+    with open("data/processed/split_manifest.json", "r", encoding="utf-8") as f:
+        splits = json.load(f)
+    panel_df = pd.read_parquet("data/processed/weekly_sales.parquet")
+    holdout_weeks = [pd.to_datetime(w).date() for w in splits["holdout_target_weeks"]]
+
+    holdout_df = panel_df[panel_df["week_start"].isin(holdout_weeks)].copy()
+    ref_df = panel_df[~panel_df["week_start"].isin(holdout_weeks)].copy()
+
+    rep = monitor_input_data_quality(holdout_df, reference_df=ref_df)
+    out_path = Path("reports/monitoring.json")
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(rep, f, indent=2)
+    print(f"Saved real monitoring report to {out_path}")
+    return rep

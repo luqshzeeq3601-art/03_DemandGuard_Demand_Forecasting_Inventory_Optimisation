@@ -1,8 +1,6 @@
 """Tests for evaluation metrics calculation, 1% simplicity selection rule, and k-factor validation (Task T11)."""
 
-import numpy as np
 import pandas as pd
-import pytest
 
 from demandguard.evaluation import calculate_forecast_metrics
 
@@ -48,10 +46,10 @@ def test_simplicity_selection_rule_logic():
     ml_wape = 0.6200
     base_wape = 0.6230
     tolerance = 0.01
-    
+
     # baseline is within 1% (0.6200 * 1.01 = 0.6262)
     assert base_wape <= ml_wape * (1.0 + tolerance)
-    
+
     # Selection rule should favor baseline
     preferred_id = "B2" if base_wape <= ml_wape * (1.0 + tolerance) else "M1_lgb"
     assert preferred_id == "B2"

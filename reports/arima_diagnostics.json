@@ -1,0 +1,7 @@
+{
+  "total_evaluations": 120,
+  "arima_100_success": 120,
+  "arima_100_fallbacks": 0,
+  "arima_111_success": 120,
+  "arima_111_fallbacks": 0
+}

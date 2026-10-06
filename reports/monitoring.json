@@ -1,16 +1,14 @@
 {
-  "timestamp_utc": "2026-10-05T18:35:44.654132+00:00",
-  "total_rows": 130,
-  "unique_skus": 2,
-  "anomalies": [
-    "Demand scale drift detected: current mean (49.4) deviates significantly from reference (426.1)."
-  ],
+  "timestamp_utc": "2026-10-06T02:24:20.152298+00:00",
+  "total_rows": 360,
+  "unique_skus": 30,
+  "anomalies": [],
   "scale_metrics": {
-    "current_mean_units": 49.43846153846154,
-    "current_std_units": 15.058544071482237,
-    "reference_mean_units": 426.062091503268,
-    "reference_std_units": 677.7274445637746,
-    "mean_ratio_to_reference": 0.11603581385057894
+    "current_mean_units": 433.90555555555557,
+    "current_std_units": 579.2403025539181,
+    "reference_mean_units": 425.0162962962963,
+    "reference_std_units": 689.8852360066378,
+    "mean_ratio_to_reference": 1.0209151021660172
   },
-  "status": "WARNING"
+  "status": "HEALTHY"
 }

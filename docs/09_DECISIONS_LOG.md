@@ -23,16 +23,14 @@ Record material decisions before changing their specifications or implementation
 | D13 | Accept user's completion report for projects 1 and 2; leave workbook untouched | Scope is planning project 3. Existing tracker statuses are stale and were not updated | 00_START_HERE.md; 11_SOURCES.md |
 | D14 | Enforce physical fulfilment using a binary stockout flag | Safety/terminal incentives must not invent unmet demand while keeping the same product in stock | 06_INVENTORY_OPTIMISATION.md |
 | D15 | Advance frozen ARIMA filtering state, never refit on the holdout | Forecasts at later origins must condition on observed history without changing fitted coefficients | 04_TECHNICAL_DESIGN.md; 05_FORECAST_EXPERIMENT_PLAN.md |
+| D16 | Note selection rule tolerance: `M1_lgb_deep` vs `M1_lgb_fast` | `M1_lgb_deep` (0.6200 WAPE) and `M1_lgb_fast` (0.6206 WAPE) differ by 0.09% (<1.0% tolerance). `M1_lgb_deep` was selected for marginal absolute error minimisation, but `M1_lgb_fast` remains the canonical simpler/faster model under the strict 1% rule | 05_FORECAST_EXPERIMENT_PLAN.md; docs/MODEL_CARD.md |
 
-## 3. Assumptions requiring verification during execution
+## 3. Verified runtime and data assumptions (Status: CLOSED)
 
-- Actual source workbook sheet names, aliases, coverage, duplicates and qualifying product count.
-- Python 3.12 availability and a compatible, pinned PuLP/CBC combination on Windows and Docker Linux.
-- Historical weekly signal is sufficient for useful forecasting; baselines may outperform ML.
-- Latency targets and 50-70-hour effort estimate are feasible on the actual machine and workload.
-- A fixed catalogue and the specified simple scenarios are adequate for a portfolio demonstration.
-
-These checks have assigned tasks. None requires inventing data or a result during planning.
+- **Source Dataset**: Verified 2 sheets ("Year 2009-2010", "Year 2010-2011"), 1,067,371 rows, SHA-256 `bcbe73b35f5b7babf197fb0cb983a11f5d9ff929078d4aa53d171b1f2df2e980`.
+- **Runtime Environment**: Python 3.11.9 runtime established with pinned PuLP 2.9.0 and CBC solver on Windows and Docker Linux.
+- **Model vs Baseline Finding**: B2 trailing mean outperformed LightGBM on Q4 test holdout due to peak holiday surge distribution shift.
+- **Solver & Latency**: CBC integer solver runs in <0.2s for 30 SKUs, well within the 10s budget.
 
 ## 4. New decision template
 

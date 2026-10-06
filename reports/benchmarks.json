@@ -1,0 +1,29 @@
+{
+  "hardware": "CPU (Local Host)",
+  "sku_benchmarks": {
+    "1_skus": {
+      "training_seconds_median": 0.01774209999996401,
+      "training_seconds_slowest": 0.04571490000000722,
+      "inference_seconds_median": 0.0036101000000599015,
+      "inference_seconds_slowest": 0.004014999999981228,
+      "milp_solve_seconds_median": 0.026231700000039382,
+      "milp_solve_seconds_slowest": 0.029261399999995774
+    },
+    "10_skus": {
+      "training_seconds_median": 0.1030483000000686,
+      "training_seconds_slowest": 0.12262710000004517,
+      "inference_seconds_median": 0.0038944000000356027,
+      "inference_seconds_slowest": 0.004807500000083564,
+      "milp_solve_seconds_median": 0.043146900000010646,
+      "milp_solve_seconds_slowest": 0.057803600000056576
+    },
+    "30_skus": {
+      "training_seconds_median": 0.11683130000005804,
+      "training_seconds_slowest": 0.15723579999996673,
+      "inference_seconds_median": 0.0031056999999918844,
+      "inference_seconds_slowest": 0.004084100000000035,
+      "milp_solve_seconds_median": 0.05894430000000739,
+      "milp_solve_seconds_slowest": 0.1197856999999658
+    }
+  }
+}

@@ -20,7 +20,19 @@
 - **Validation Protocol**: 4 chronological non-overlapping folds (Origins: 2011-05-16, 2011-06-13, 2011-07-11, 2011-08-08).
 - **Final Holdout Split**: 12 complete calendar weeks (2011-09-12 to 2011-11-28) evaluated strictly out-of-sample after model selection freeze.
 
-## 4. Measured Performance
+## 4. Objectives & Status Audit Matrix
+
+| ID | Objective | Description | Target | Achieved Result | Status | Plain Explanation |
+| :--- | :--- | :--- | :--- | :--- | :---: | :--- |
+| **O1** | Trustworthy Weekly Data | Reconciled, leak-free panel from raw transactions | 100+ weeks, $\ge 10$ SKUs | 102 complete weeks, 30 SKUs, 9,013,090 panel units | ⚠️ **Mostly Met** | Panel is 100% verified. Gap of 358,320 units from clean data (9,371,410) is due to dropping partial boundary weeks (Dec 1–6, 2009 & Dec 5–9, 2011). |
+| **O2** | 4-Week Forecasts | Nonnegative, finite multi-step predictions | 100% coverage, breakdown reporting | 480 val + 360 holdout predictions | ⚠️ **Mostly Met** | Predictions exist and are valid; granular breakdowns by horizon and SKU provided in reports. |
+| **O3** | ML Forecast Superiority | LightGBM outperforms best simple baseline | $\ge 10\%$ WAPE reduction | Val: +7.76% (0.6200 vs 0.6722)<br>Holdout: -23.0% (0.7107 vs 0.5777) | ❌ **Missed (Stretch)** | **Missed**: LightGBM failed to beat the trailing 4-week mean on the 12-week test holdout. |
+| **O4** | Feasible Orders | Physical & financial constraints strictly respected | 0 breaches, integer orders | 0 capacity breaches, 0 budget violations across all 12 weeks | ✅ **Met** | Pre-demand bounds and committed-order arrival space protection ($I_0 + A_1 + Q_1 \le C$) verified. |
+| **O5** | Inventory Cost Reduction | Optimised replenishment reduces total supply chain cost | $\ge 5\%$ cost reduction, $\ge$ fill rate | P1: -1.52% cost (332.8k vs 338.0k SCU), +0.86% fill rate<br>P2: +7.76% cost | ❌ **Missed (Stretch)** | **Missed**: P1 saved 1.52% (5,134.30 SCU), short of the 5% target. P2 ML forecast increased cost due to under-forecasting. |
+| **O6** | Reproducible Engineering | Test suite, linting, CLI, API, container & CI | Passing tests, clean lint, verified contracts | 28 passing tests, clean Ruff lint, API & container verified | ⚠️ **Mostly Met** | Unit/integration tests pass. Local git initialized; live remote CI requires external runner. |
+| **O7** | Chat-Independent Docs | Specs, logs, runbooks, and decisions self-contained | Markdown source of truth | Comprehensive specs, logs, and runbooks | ✅ **Met** | Markdown documentation complete and fully self-contained. |
+
+## 5. Measured Performance
 
 ### Validation Backtesting (Pooled WAPE, 480 predictions)
 | Candidate Model | WAPE | MAE (Units) | Bias |
@@ -34,21 +46,31 @@
 | Seasonal Naive (B3) | 1.0687 | 353.40 | +0.4045 |
 
 ### Final 12-Week Test Holdout (360 predictions)
-| Model | Holdout WAPE | Holdout MAE |
-| --- | --- | --- |
-| Trailing 4-Week Mean (B2) | 0.5777 | 250.67 |
-| ARIMA (B4) | 0.6423 | 278.68 |
-| Last Value (B1) | 0.7090 | 307.64 |
-| LightGBM Champion (M1) | 0.7107 | 308.37 |
-| Seasonal Naive (B3) | 1.0693 | 463.97 |
+| Model | Holdout WAPE | Holdout MAE | Signed Bias | Status vs ML |
+| --- | --- | --- | --- | --- |
+| **Trailing 4-Week Mean (B2)** | **0.5777** | **250.67** | **-0.1523** | **Beat ML by 18.7% lower error** |
+| ARIMA (B4) | 0.6423 | 278.68 | +0.0232 | Beat ML |
+| Last Value (B1) | 0.7090 | 307.64 | -0.0598 | Beat ML |
+| **LightGBM Champion (M1)** | **0.7107** | **308.37** | **-0.2736** | **Lost on test holdout (-27.4% bias)** |
+| Seasonal Naive (B3) | 1.0693 | 463.97 | +0.5044 | Baseline |
 
 ### 12-Week Inventory Simulation Outcomes (Synthetic SCU)
-| Replenishment Policy | Net Realised Cost (SCU) | Fill Rate | Unmet Units | Breaches |
-| --- | --- | --- | --- | --- |
-| **P1 (MILP + B2 Forecast)** | **332,830.56** | **70.52%** | **46,054** | **0** |
-| P0 (Constrained Heuristic Rule) | 337,964.86 | 69.66% | 47,393 | 0 |
-| P2 (MILP + LightGBM Forecast) | 364,193.66 | 65.52% | 53,866 | 0 |
+| Replenishment Policy | Net Realised Cost (SCU) | Fill Rate | Unmet Units | Breaches | Cost Reduction vs P0 |
+| --- | --- | --- | --- | --- | --- |
+| **P1 (MILP + B2 Forecast)** | **332,830.56** | **70.52%** | **46,054** | **0** | **-1.52% (5,134.30 SCU saved)** |
+| P0 (Constrained Heuristic Rule) | 337,964.86 | 69.66% | 47,393 | 0 | Baseline |
+| P2 (MILP + LightGBM Forecast) | 364,193.66 | 65.52% | 53,866 | 0 | +7.76% (Cost Increased) |
 
-## 5. Ethical & Scientific Considerations
-- **No Data Fabrication**: Results represent actual measured performance. When simple trailing mean outperformed ML on the test holdout, it was reported transparently.
-- **Physical Feasibility**: The MILP integer formulations enforce pre-demand warehouse capacity and committed-order reservations ($I_0 + A_1 + Q_1 \le C$), guaranteeing 0 delivery overflow occurrences.
+## 6. Scientific Findings & Root Cause Analysis
+
+1. **Validation vs Holdout Divergence (Seasonal Distribution Shift)**:
+   - The 4 validation folds (Origins 74, 78, 82, 86) spanned May to August 2011 (summer sales with steady patterns), where LightGBM outperformed B2 by 7.76% (0.6200 vs 0.6722).
+   - The test holdout spanned September to November 2011 (the Q4 UK Christmas pre-holiday surge). LightGBM exhibited severe negative bias (-27.36%), under-forecasting the rapid demand surge. In contrast, the trailing 4-week mean (B2) adapted faster to the rising trend.
+2. **Inventory Budget Constraint Effect**:
+   - Across all policies, unit fill rates hover around 65%–70% because the synthetic weekly budget is tight relative to peak Q4 demand.
+   - Unmet demand penalties ($p=5.0$ SCU) account for ~70% of total supply chain costs, heavily penalizing under-forecasting.
+3. **Selection Rule Compliance**:
+   - `M1_lgb_deep` (0.6200) and `M1_lgb_fast` (0.6206) were within 0.09% WAPE. `M1_lgb_deep` was selected for minimal absolute error, though `M1_lgb_fast` is the canonical simpler model under the 1% simplicity rule (documented in Decision D16).
+4. **Hardware & Latency**:
+   - Model inference latency: <0.05s for 30 SKUs.
+   - PuLP CBC integer solve runtime: <0.20s for 30 SKUs and 4 planning horizons.

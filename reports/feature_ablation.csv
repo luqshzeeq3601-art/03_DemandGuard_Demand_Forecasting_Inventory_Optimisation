@@ -1,0 +1,3 @@
+ablation_configuration,feature_count,validation_wape,validation_mae,validation_bias
+A_Lags_Calendar_Only,14,0.6502010369995028,215.0052279098106,-0.016499661837324864
+B_Lags_Calendar_Rolling (Full),24,0.6218543885703107,205.6316999404875,-0.013878041595717797

@@ -89,3 +89,25 @@ The final report must state that twelve weeks and one catalogue provide limited 
 - `docs/MODEL_CARD.md`: created during release with actual measured results; not fabricated during planning.
 
 Do not refit on all data while labelling the resulting artifact with holdout scores from a different model. A later full-history refit requires a new version and explicit provenance.
+
+## 9. v0.2 Scientific Roadmap (Unconsumed Evaluation Protocol)
+
+The v0.1 test holdout (Sept–Nov 2011 Q4 holiday ramp-up) proved that LightGBM trained on summer data suffered from -27.4% under-forecasting bias. Because that test split has been evaluated, it is scientifically consumed. v0.2 introduces a pre-registered evaluation protocol and architectural improvements:
+
+### A. Temporal Evaluation Protocol
+- **Cross-Year Holiday Validation**: Split the first year into training (2009-12 to 2010-08) and validation covering the 2010 Q4 holiday peak (2010-09 to 2010-11).
+- **Holdout Freeze**: Model candidates must prove holiday generalisation on the 2010 peak before evaluation on a reserved 2011 holdout window.
+
+### B. Feature Architecture
+- **52-Week Seasonal Lags**: Incorporate `lag_51` and `lag_52` with seasonal interaction terms.
+- **Cyclical Calendar Encodings**: $\sin(2\pi \cdot \text{week} / 52)$ and $\cos(2\pi \cdot \text{week} / 52)$.
+- **Short-Term Momentum**: Ratio of 2-week rolling mean to 8-week rolling mean to detect rapid trend acceleration.
+
+### C. Objective & Loss Functions
+- **Tweedie Regression ($\rho=1.5$) / Poisson Loss**: Better handles right-skewed count data and penalizes under-forecasting.
+- **Exponential Recency Sample Weighting**: Decay factor $\lambda=0.98^{\Delta t}$ to prioritize recent sales trajectory over distant history.
+
+### D. Hybrid Forecast & Scenario Calibration
+- **Blended Forecast**: $\hat{y} = \alpha \hat{y}_{\text{ML}} + (1-\alpha) \hat{y}_{\text{B2}}$, combining ML's cross-product structure with trailing mean's trend adaptability.
+- **Calibrated Scenario Budgets**: Test $1.2\times$ baseline budget so unmet penalties do not overwhelm policy differences.
+

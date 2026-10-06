@@ -1,0 +1,4 @@
+safety_stock_k,mean_validation_cost_scu,mean_fill_rate,total_capacity_breaches,is_selected_champion_k
+0.0,65962.93,0.7551007030912568,0,False
+1.0,55689.854999999996,0.8480575729668768,0,True
+1.645,56574.71,0.849787634464128,0,False
