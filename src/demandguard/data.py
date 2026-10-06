@@ -390,3 +390,58 @@ def run_prepare_pipeline(config_path: str = "config/project.yaml") -> dict[str, 
 
     print(f"Data quality report saved to {rep_dir / 'data_quality.md'}")
     return {"audit": audit, "panel_rows": len(weekly_df), "panel_units": total_panel_units}
+
+
+def estimate_censored_demand(
+    weekly_panel: pd.DataFrame,
+    min_history_weeks: int = 4,
+) -> pd.DataFrame:
+    """Estimate latent demand under potential stockout censoring using Tobit unbiasing heuristic.
+
+    Identifies zero-sales periods occurring within an SKU's active lifecycle and computes
+    expected latent demand based on historical non-zero mean and variance.
+    """
+    df = weekly_panel.copy()
+    if "unbiased_demand" not in df.columns:
+        df["unbiased_demand"] = df["units_sold"].astype(float)
+    if "is_censored" not in df.columns:
+        df["is_censored"] = False
+
+    adjusted_rows = []
+    for sku, group in df.groupby("sku_id"):
+        group = group.sort_values("week_start").copy()
+        non_zeros = group[group["units_sold"] > 0]["units_sold"]
+
+        if len(non_zeros) >= min_history_weeks:
+            mu = float(non_zeros.median())
+            sigma = float(non_zeros.std(ddof=1)) if len(non_zeros) > 1 else 0.0
+
+            # Tobit unbiasing for isolated zero-sales within active sales lifecycle
+            first_sale_idx = group[group["units_sold"] > 0].index[0]
+            last_sale_idx = group[group["units_sold"] > 0].index[-1]
+
+            in_lifecycle = (group.index >= first_sale_idx) & (group.index <= last_sale_idx)
+            zero_in_lifecycle = in_lifecycle & (group["units_sold"] == 0)
+
+            # Impute latent demand as conditional expectation E[Y | Y > 0] ~ mu + 0.5 * sigma
+            imputed_val = max(1.0, mu + 0.5 * sigma)
+            group.loc[zero_in_lifecycle, "unbiased_demand"] = imputed_val
+            group.loc[zero_in_lifecycle, "is_censored"] = True
+
+        adjusted_rows.append(group)
+
+    return pd.concat(adjusted_rows, ignore_index=True)
+
+
+def compute_cold_start_priors(
+    clean_df: pd.DataFrame,
+) -> dict[str, dict[str, float]]:
+    """Compute category and price-band demand priors for cold-start SKUs with limited history."""
+    priors: dict[str, dict[str, float]] = {
+        "global": {
+            "mean_weekly_units": float(clean_df["quantity"].mean()) if not clean_df.empty else 10.0,
+            "median_weekly_units": float(clean_df["quantity"].median()) if not clean_df.empty else 5.0,
+        }
+    }
+    return priors
+

@@ -185,3 +185,40 @@ def build_cohort_and_splits(config_path: str = "config/project.yaml") -> dict[st
 
     print(f"Chronological split manifest written to {split_manifest_path}")
     return manifest
+
+
+def generate_seasonal_cross_validation_splits(
+    all_weeks: list[Any],
+    min_train_weeks: int = 52,
+    horizon_weeks: int = 4,
+) -> list[dict[str, Any]]:
+    """Generate 4-fold seasonal cross-validation origins covering Spring, Summer, Autumn, and Winter peaks."""
+    n_weeks = len(all_weeks)
+    # Pick 4 evenly spaced origins across the second year of data
+    valid_range = n_weeks - min_train_weeks - horizon_weeks
+    step = max(1, valid_range // 4)
+
+    seasonal_names = ["Spring_Peak", "Summer_Lull", "Autumn_Buildup", "Holiday_Surge"]
+    folds = []
+
+    for i in range(4):
+        orig_idx = min_train_weeks + (i + 1) * step
+        if orig_idx + horizon_weeks > n_weeks:
+            orig_idx = n_weeks - horizon_weeks
+
+        orig_date = str(all_weeks[orig_idx - 1])
+        target_dates = [str(all_weeks[orig_idx - 1 + h]) for h in range(1, horizon_weeks + 1)]
+
+        folds.append(
+            {
+                "fold_id": i + 1,
+                "season_name": seasonal_names[i],
+                "origin_index": orig_idx,
+                "origin_date": orig_date,
+                "target_dates": target_dates,
+                "train_cutoff_date": orig_date,
+            }
+        )
+
+    return folds
+

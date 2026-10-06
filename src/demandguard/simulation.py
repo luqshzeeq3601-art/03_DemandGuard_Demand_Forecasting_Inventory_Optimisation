@@ -160,3 +160,71 @@ def compute_simulation_summary(
         "final_pipeline_units": final_pipeline_units,
         "capacity_breaches": capacity_breaches,
     }
+
+
+def step_product_inventory_stochastic_pipeline(
+    state: ProductInventoryState,
+    placed_order_q1: int,
+    realized_demand: int,
+    week_start: str,
+    pipeline_arrivals: list[int],  # [arriving_week_1, arriving_week_2, ...]
+    warehouse_capacity_slots: int | None = None,
+) -> tuple[ProductInventoryState, list[int], WeeklyStepResult]:
+    """Execute product state transition under multi-period or stochastic pipeline arrivals."""
+    starting_on_hand = int(state.on_hand_units)
+    received = int(pipeline_arrivals[0]) if pipeline_arrivals else 0
+    available_stock = starting_on_hand + received
+
+    capacity_breached = False
+    if warehouse_capacity_slots is not None:
+        occupancy = available_stock * state.storage_slots_per_unit
+        if occupancy > warehouse_capacity_slots:
+            capacity_breached = True
+
+    demand = int(max(0, realized_demand))
+    sales = min(available_stock, demand)
+    unmet = max(0, demand - available_stock)
+    ending_on_hand = available_stock - sales
+
+    order_q1 = int(max(0, placed_order_q1))
+    purchase_spend = order_q1 * state.unit_purchase_cost_scu
+    holding_cost = ending_on_hand * state.holding_cost_scu_per_unit_week
+    unmet_penalty = unmet * state.unmet_penalty_scu_per_unit
+    total_week_cost = purchase_spend + holding_cost + unmet_penalty
+
+    # Shift pipeline and push new order
+    new_pipeline = list(pipeline_arrivals[1:]) if len(pipeline_arrivals) > 1 else [0]
+    new_pipeline.append(order_q1)
+
+    new_state = ProductInventoryState(
+        sku_id=state.sku_id,
+        on_hand_units=ending_on_hand,
+        incoming_week_1_units=new_pipeline[0],
+        unit_purchase_cost_scu=state.unit_purchase_cost_scu,
+        holding_cost_scu_per_unit_week=state.holding_cost_scu_per_unit_week,
+        unmet_penalty_scu_per_unit=state.unmet_penalty_scu_per_unit,
+        storage_slots_per_unit=state.storage_slots_per_unit,
+    )
+
+
+    result = WeeklyStepResult(
+        week_start=week_start,
+        sku_id=state.sku_id,
+        starting_on_hand=starting_on_hand,
+        received_shipment=received,
+        on_hand_after_receipt=available_stock,
+        placed_order_q1=order_q1,
+        realized_demand=demand,
+        realized_sales=sales,
+        unmet_demand=unmet,
+        ending_on_hand=ending_on_hand,
+        ending_incoming=new_pipeline[0],
+        purchase_spend_scu=purchase_spend,
+        holding_cost_scu=holding_cost,
+        unmet_penalty_scu=unmet_penalty,
+        total_week_cost_scu=total_week_cost,
+        capacity_breached=capacity_breached,
+    )
+
+    return new_state, new_pipeline, result
+

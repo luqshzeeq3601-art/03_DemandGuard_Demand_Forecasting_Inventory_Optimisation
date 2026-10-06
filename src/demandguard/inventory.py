@@ -331,3 +331,121 @@ def build_reorder_worklist(
         worklist=worklist,
         warnings=warnings,
     )
+
+
+def solve_stochastic_inventory_milp(
+    products: list[ProductInventoryInput],
+    forecast_quantiles: dict[str, dict[str, list[float]]],  # sku -> {'p10': [...], 'p50': [...], 'p90': [...]}
+    weekly_budgets_scu: list[float],
+    warehouse_capacity_slots: int,
+    scenario_weights: dict[str, float] | None = None,
+    terminal_value_fraction: float = 0.5,
+    solver_time_limit_seconds: int = 10,
+) -> tuple[dict[str, Any], dict[str, list[int]], dict[str, Any]]:
+    """Build and solve multi-scenario stochastic MILP minimizing expected holding and unmet penalties."""
+    start_time = time.perf_counter()
+    weights = scenario_weights or {"p10": 0.25, "p50": 0.50, "p90": 0.25}
+    scenarios = list(weights.keys())
+
+    prob = pulp.LpProblem("DemandGuard_Stochastic_MILP", pulp.LpMinimize)
+
+    Q: dict[tuple[str, int], pulp.LpVariable] = {}
+    I: dict[tuple[str, int, str], pulp.LpVariable] = {}  # (sku, t, s)  # noqa: E741
+    U: dict[tuple[str, int, str], pulp.LpVariable] = {}  # (sku, t, s)
+    Z: dict[tuple[str, int, str], pulp.LpVariable] = {}  # (sku, t, s)
+    b: dict[tuple[str, int, str], pulp.LpVariable] = {}  # (sku, t, s)
+
+    for p in products:
+        sku = p.sku_id
+        for t in range(1, 5):
+            if t == 4:
+                Q[(sku, t)] = pulp.LpVariable(f"Q_{sku}_{t}", lowBound=0, upBound=0, cat=pulp.LpInteger)
+            else:
+                Q[(sku, t)] = pulp.LpVariable(f"Q_{sku}_{t}", lowBound=0, cat=pulp.LpInteger)
+
+            for s in scenarios:
+                I[(sku, t, s)] = pulp.LpVariable(f"I_{sku}_{t}_{s}", lowBound=0, cat=pulp.LpContinuous)
+                U[(sku, t, s)] = pulp.LpVariable(f"U_{sku}_{t}_{s}", lowBound=0, cat=pulp.LpContinuous)
+                Z[(sku, t, s)] = pulp.LpVariable(f"Z_{sku}_{t}_{s}", lowBound=0, cat=pulp.LpContinuous)
+                b[(sku, t, s)] = pulp.LpVariable(f"b_{sku}_{t}_{s}", cat=pulp.LpBinary)
+
+    # Objective: procurement cost + expected holding/shortage costs across scenarios
+    obj_terms = []
+    for p in products:
+        sku = p.sku_id
+        c_i = p.unit_purchase_cost_scu
+        h_i = p.holding_cost_scu_per_unit_week
+        p_i = p.unmet_penalty_scu_per_unit
+        g_i = p.safety_deficit_penalty_scu
+
+        for t in range(1, 5):
+            obj_terms.append(c_i * Q[(sku, t)])
+
+        for s in scenarios:
+            w_s = weights[s]
+            for t in range(1, 5):
+                obj_terms.append(w_s * h_i * I[(sku, t, s)])
+                obj_terms.append(w_s * p_i * U[(sku, t, s)])
+                obj_terms.append(w_s * g_i * Z[(sku, t, s)])
+            # Terminal credit
+            obj_terms.append(-w_s * terminal_value_fraction * c_i * I[(sku, 4, s)])
+
+    prob += pulp.lpSum(obj_terms)
+
+    M = 100000.0
+    for p in products:
+        sku = p.sku_id
+        s_i = p.safety_stock_target_units
+        sku_fc = forecast_quantiles.get(sku, {})
+
+        for s in scenarios:
+            fc_list = sku_fc.get(s, [0.0, 0.0, 0.0, 0.0])
+            for t in range(1, 5):
+                d_it = float(fc_list[t - 1]) if t - 1 < len(fc_list) else 0.0
+                if t == 1:
+                    prev_I = p.on_hand_units
+                    arr = p.incoming_week_1_units
+                else:
+                    prev_I = I[(sku, t - 1, s)]
+                    arr = Q[(sku, t - 1)]
+
+                # Net balance
+                prob += I[(sku, t, s)] - U[(sku, t, s)] == prev_I + arr - d_it
+                prob += I[(sku, t, s)] <= M * (1 - b[(sku, t, s)])
+                prob += U[(sku, t, s)] <= M * b[(sku, t, s)]
+                prob += Z[(sku, t, s)] >= s_i - I[(sku, t, s)]
+
+    # Budget constraints
+    for t in range(1, 5):
+        B_t = weekly_budgets_scu[t - 1]
+        prob += pulp.lpSum(p.unit_purchase_cost_scu * Q[(p.sku_id, t)] for p in products) <= B_t
+
+    # Committed order reservation
+    prob += (
+        pulp.lpSum(
+            p.storage_slots_per_unit * (p.on_hand_units + p.incoming_week_1_units + Q[(p.sku_id, 1)])
+            for p in products
+        )
+        <= warehouse_capacity_slots
+    )
+
+    solver = pulp.PULP_CBC_CMD(timeLimit=solver_time_limit_seconds, msg=False)
+    prob.solve(solver)
+    runtime = time.perf_counter() - start_time
+
+    status_str = pulp.LpStatus.get(prob.status, "UNKNOWN")
+    solved_orders: dict[str, list[int]] = {}
+    if status_str in ("Optimal", "Feasible"):
+        for p in products:
+            sku = p.sku_id
+            orders = [int(round(pulp.value(Q[(sku, t)]) or 0)) for t in range(1, 5)]
+            solved_orders[sku] = orders
+
+    solver_meta = {
+        "status": status_str,
+        "runtime_seconds": runtime,
+        "objective": pulp.value(prob.objective) if prob.objective else None,
+        "solver_name": "PULP_CBC_CMD",
+    }
+    return solver_meta, solved_orders, {}
+

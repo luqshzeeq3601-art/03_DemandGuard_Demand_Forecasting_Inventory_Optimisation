@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pulp
-from fastapi import FastAPI, HTTPException, status
+from fastapi import BackgroundTasks, FastAPI, HTTPException, status
 
 from demandguard.contracts import (
     ForecastPredictionRow,
@@ -236,3 +236,49 @@ def create_reorder_plan(req: ReorderScenarioRequest) -> ReorderResponse:
         warnings=violations,
     )
     return response
+
+
+# Asynchronous background job registry
+BACKGROUND_JOBS: dict[str, dict[str, Any]] = {}
+
+
+def _execute_async_reorder_job(job_id: str, req: ReorderScenarioRequest) -> None:
+    """Worker task to execute optimization job asynchronously."""
+    try:
+        BACKGROUND_JOBS[job_id]["status"] = "RUNNING"
+        res = create_reorder_plan(req)
+        BACKGROUND_JOBS[job_id]["status"] = "COMPLETED"
+        BACKGROUND_JOBS[job_id]["result"] = res.model_dump()
+    except Exception as e:
+        BACKGROUND_JOBS[job_id]["status"] = "FAILED"
+        BACKGROUND_JOBS[job_id]["error"] = str(e)
+
+
+
+@app.post("/reorder/async", tags=["Optimization"])
+def create_async_reorder_job(
+    req: ReorderScenarioRequest,
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
+    """Submit asynchronous long-horizon MILP inventory optimization job."""
+    import uuid
+
+    job_id = f"job-{uuid.uuid4().hex[:8]}"
+    BACKGROUND_JOBS[job_id] = {
+        "job_id": job_id,
+        "status": "QUEUED",
+        "created_at": datetime.datetime.utcnow().isoformat(),
+        "result": None,
+        "error": None,
+    }
+    background_tasks.add_task(_execute_async_reorder_job, job_id, req)
+    return {"job_id": job_id, "status": "QUEUED"}
+
+
+@app.get("/jobs/{job_id}", tags=["Optimization"])
+def get_job_status(job_id: str) -> dict[str, Any]:
+    """Poll status and retrieve result of an asynchronous optimization job."""
+    if job_id not in BACKGROUND_JOBS:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
+    return BACKGROUND_JOBS[job_id]
+

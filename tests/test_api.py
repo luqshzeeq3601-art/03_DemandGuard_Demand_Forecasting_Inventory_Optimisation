@@ -86,3 +86,33 @@ def test_api_errors_and_capacity_conflict():
     }
     resp_over = client.post("/reorder", json=reorder_over)
     assert resp_over.status_code == 409
+
+
+def test_api_async_reorder():
+    """Verify asynchronous reorder job submission and polling endpoint."""
+    df_hist = pd.read_csv("tests/fixtures/demo_history.csv")
+    history_records = df_hist.to_dict(orient="records")
+    as_of = str(df_hist["week_start"].max())
+
+    reorder_req = {
+        "as_of_week_start": as_of,
+        "warehouse_capacity_slots": 5000,
+        "weekly_budgets_scu": [2000.0, 2000.0, 2000.0, 2000.0],
+        "inventory": [
+            {"sku_id": "85123A", "on_hand_units": 100, "incoming_week_1_units": 0},
+            {"sku_id": "84077", "on_hand_units": 50, "incoming_week_1_units": 0},
+        ],
+        "history": history_records,
+    }
+
+    # Submit job
+    resp = client.post("/reorder/async", json=reorder_req)
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+    assert job_id.startswith("job-")
+
+    # Poll status
+    resp_status = client.get(f"/jobs/{job_id}")
+    assert resp_status.status_code == 200
+    assert resp_status.json()["status"] in ("QUEUED", "RUNNING", "COMPLETED")
+

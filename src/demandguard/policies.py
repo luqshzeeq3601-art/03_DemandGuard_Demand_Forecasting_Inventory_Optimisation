@@ -76,3 +76,21 @@ def compute_p0_order_quantities(
         remaining_space -= alloc * unit_space
 
     return allocated_orders
+
+
+def compute_quantile_spread_safety_stock(
+    p10_forecast: float,
+    p90_forecast: float,
+    service_level_z: float = 1.65,
+    lead_time_weeks: float = 1.0,
+) -> float:
+    """Compute uncertainty-aware safety stock derived directly from predicted quantile spread.
+
+    Estimated sigma ~ (P90 - P10) / 2.56 under approximate normality.
+    Safety Stock = z * sigma * sqrt(L).
+    """
+    spread = max(0.0, float(p90_forecast) - float(p10_forecast))
+    implied_sigma = spread / 2.5631  # 2 * 1.28155
+    ss = service_level_z * implied_sigma * math.sqrt(lead_time_weeks)
+    return max(0.0, float(round(ss, 2)))
+

@@ -35,3 +35,23 @@
 | **T16** | `pytest tests/test_monitoring.py -v` | **SUCCESS**: Input schema anomaly detection, scale shift detection, and delayed accuracy calculation verified. | `src/demandguard/monitoring.py`, `tests/test_monitoring.py` | — |
 | **T17** | `python -m demandguard.cli report` | **SUCCESS**: Matplotlib comparison charts (`forecast_comparison_plot.png`, `inventory_cost_fillrate_plot.png`), markdown reports, `docs/MODEL_CARD.md`, and `README.md` generated. | `reports/`, `docs/MODEL_CARD.md`, `README.md` | — |
 | **T18** | `pytest tests -v; ruff check src tests` | **SUCCESS**: Full test suite (28/28 tests passing across all 18 test files) and clean Ruff linter checks verified. Local Git repository initialized. | `.git/`, test logs, `docs/07_VALIDATION_AND_RELEASE.md` | **G7: PASSED** |
+
+---
+
+## 3. v0.2 Improvement Tasks Execution and Evidence Log (T19–T30)
+
+| Task | Module / Action | Result & Status | Verification Evidence |
+| :--- | :--- | :--- | :--- |
+| **T19** | `src/demandguard/data.py` | **SUCCESS**: Tobit demand uncensoring heuristic and cold start priors implemented. | `tests/test_data.py::test_estimate_censored_demand`, `test_compute_cold_start_priors` |
+| **T20** | `src/demandguard/features.py` | **SUCCESS**: 52-week lag, rolling 52, annual Fourier harmonics ($\sin/\cos$), momentum ratios, and recency exponential sample weights added. | `tests/test_features.py` |
+| **T21** | `src/demandguard/model.py` | **SUCCESS**: `DemandGuardProbabilisticModel` multi-quantile ($P10, P50, P90$) regressors and Tweedie support implemented. | `tests/test_model.py::test_probabilistic_model_monotonicity` |
+| **T22** | `src/demandguard/model.py` | **SUCCESS**: `HybridAdaptiveForecaster` combining LightGBM with B2 moving averages and online bias correction ($\beta_t$) implemented. | `tests/test_model.py::test_hybrid_adaptive_forecaster` |
+| **T23** | `src/demandguard/splits.py` | **SUCCESS**: 4-fold multi-season cross-validation generator covering Spring, Summer, Autumn, and Winter peaks added. | `tests/test_splits.py` |
+| **T24** | `src/demandguard/inventory.py` | **SUCCESS**: `solve_stochastic_inventory_milp` implemented minimizing expected costs across quantile scenarios. | `tests/test_inventory.py::test_stochastic_inventory_milp` |
+| **T25** | `src/demandguard/policies.py` | **SUCCESS**: Dynamic quantile-spread safety stock policy ($SS_{it} \propto P90 - P10$) implemented. | `tests/test_policies.py::test_quantile_spread_safety_stock` |
+| **T26** | `src/demandguard/simulation.py` | **SUCCESS**: Multi-week pipeline and stochastic lead-time inventory simulation added. | `tests/test_simulation.py::test_stochastic_pipeline_simulation` |
+| **T27** | `src/demandguard/api.py` | **SUCCESS**: Asynchronous background optimization job execution (`POST /reorder/async`) and polling (`GET /jobs/{id}`) added. | `tests/test_api.py::test_api_async_reorder` |
+| **T28** | `src/demandguard/monitoring.py` | **SUCCESS**: Population Stability Index (PSI) and Kolmogorov-Smirnov distribution drift detection implemented. | `tests/test_monitoring.py::test_psi_drift_detection` |
+| **T29** | `tests/` | **SUCCESS**: Expanded test suite to 41/41 unit and integration tests passing with 100% success rate. | `pytest` (41 passed, 0 failures), `ruff check` (clean) |
+| **T30** | `docs/`, `tasks/todo.md` | **SUCCESS**: Decisions log updated (D17), progress log updated, todo list synced, improvement plan artifact delivered. | `docs/09_DECISIONS_LOG.md`, `docs/10_PROGRESS_LOG.md`, `tasks/todo.md` |
+

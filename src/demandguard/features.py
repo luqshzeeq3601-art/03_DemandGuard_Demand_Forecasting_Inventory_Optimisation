@@ -13,8 +13,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import yaml
 
-LAG_OFFSETS = [0, 1, 2, 3, 7, 12, 25, 51]
-ROLLING_WINDOWS = [4, 13, 26]
+LAG_OFFSETS = [0, 1, 2, 3, 7, 12, 25, 51, 52]
+ROLLING_WINDOWS = [4, 13, 26, 52]
 
 
 def extract_causal_features_for_series(
@@ -49,19 +49,30 @@ def extract_causal_features_for_series(
         feats[f"rolling_std_{w}"] = float(np.std(sub, ddof=1)) if len(sub) > 1 else 0.0
         feats[f"zero_fraction_{w}"] = float(np.mean(sub == 0))
 
-    # 3. Simple trend: trailing 4-week mean minus preceding 4-week mean
+    # 3. Simple trend & momentum ratio
     trail_4 = sales_array[-4:]
     prec_4 = sales_array[-8:-4]
     feats["trend_4_4"] = float(np.mean(trail_4) - np.mean(prec_4))
+    m13 = float(feats["rolling_mean_13"])
+    feats["momentum_4_13"] = float(feats["rolling_mean_4"] / (m13 + 1e-4))
 
-    # 4. Calendar features
+    # 4. Calendar & Fourier cyclical harmonics
     target_date = origin_date + datetime.timedelta(weeks=horizon)
-    feats["origin_week_of_year"] = origin_date.isocalendar()[1]
+    orig_woy = origin_date.isocalendar()[1]
+    tgt_woy = target_date.isocalendar()[1]
+    feats["origin_week_of_year"] = orig_woy
     feats["origin_month"] = origin_date.month
-    feats["target_week_of_year"] = target_date.isocalendar()[1]
+    feats["target_week_of_year"] = tgt_woy
     feats["target_month"] = target_date.month
 
+    # Fourier harmonics (annual cycle)
+    feats["sin_woy_orig"] = float(np.sin(2 * np.pi * orig_woy / 52.0))
+    feats["cos_woy_orig"] = float(np.cos(2 * np.pi * orig_woy / 52.0))
+    feats["sin_woy_tgt"] = float(np.sin(2 * np.pi * tgt_woy / 52.0))
+    feats["cos_woy_tgt"] = float(np.cos(2 * np.pi * tgt_woy / 52.0))
+
     return feats
+
 
 
 def build_feature_table(
@@ -133,3 +144,17 @@ def generate_and_save_features(config_path: str = "config/project.yaml") -> pd.D
         f"Features table saved to {features_path} ({len(feat_df)} rows, {feat_df['sku_id'].nunique()} SKUs)"
     )
     return feat_df
+
+
+def compute_recency_weights(
+    origin_dates: pd.Series,
+    decay_rate: float = 0.98,
+) -> np.ndarray:
+    """Compute exponential recency sample weights lambda^(T - t) relative to the most recent origin."""
+    dates = pd.to_datetime(origin_dates)
+    max_date = dates.max()
+    weeks_diff = (max_date - dates).dt.days // 7
+    weights = np.power(decay_rate, weeks_diff.values)
+    # Normalise so mean weight is 1.0
+    return weights / (np.mean(weights) + 1e-8)
+

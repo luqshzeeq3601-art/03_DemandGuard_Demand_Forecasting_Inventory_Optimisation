@@ -61,3 +61,30 @@ def test_monitor_delayed_forecast_metrics():
     # Errors: |50-60|=10, |50-40|=10 -> sum_abs=20 / sum_act=100 -> WAPE = 0.2
     assert abs(res_avail["delayed_wape"] - 0.2) < 1e-6
     assert abs(res_avail["delayed_mae"] - 10.0) < 1e-6
+
+
+def test_psi_drift_detection():
+    """Verify PSI calculation for identical and drifted distributions."""
+    import numpy as np
+
+    from demandguard.monitoring import (
+        calculate_population_stability_index,
+        compute_distribution_drift,
+    )
+
+    np.random.seed(42)
+    ref = np.random.normal(50, 10, 500)
+    cur_stable = np.random.normal(50, 10, 500)
+    cur_drifted = np.random.normal(120, 20, 500)
+
+    psi_stable = calculate_population_stability_index(ref, cur_stable)
+    psi_drifted = calculate_population_stability_index(ref, cur_drifted)
+
+    assert psi_stable < 0.10
+    assert psi_drifted > 0.25
+
+    df_ref = pd.DataFrame({"units_sold": ref})
+    df_drift = pd.DataFrame({"units_sold": cur_drifted})
+    drift_rep = compute_distribution_drift(df_ref, df_drift)
+    assert drift_rep["drift_level"] == "SIGNIFICANT_DRIFT"
+

@@ -92,3 +92,39 @@ def test_milp_zero_budget_and_capacity_violations():
             weekly_budgets_scu=[10.0, 10.0, 10.0, 10.0],
             warehouse_capacity_slots=50,
         )
+
+
+def test_stochastic_inventory_milp():
+    """Verify stochastic MILP solver across multiple quantile scenarios."""
+    from demandguard.inventory import solve_stochastic_inventory_milp
+
+    prod = ProductInventoryInput(
+        sku_id="SKU_STOCH",
+        on_hand_units=0,
+        incoming_week_1_units=0,
+        unit_purchase_cost_scu=1.0,
+        holding_cost_scu_per_unit_week=0.1,
+        unmet_penalty_scu_per_unit=10.0,
+        storage_slots_per_unit=1.0,
+        safety_stock_target_units=0.0,
+    )
+    quantiles = {
+        "SKU_STOCH": {
+            "p10": [2.0, 2.0, 0.0, 0.0],
+            "p50": [5.0, 5.0, 0.0, 0.0],
+            "p90": [10.0, 10.0, 0.0, 0.0],
+        }
+    }
+    budgets = [20.0, 20.0, 20.0, 20.0]
+
+    raw_res, solved_orders, _ = solve_stochastic_inventory_milp(
+        products=[prod],
+        forecast_quantiles=quantiles,
+        weekly_budgets_scu=budgets,
+        warehouse_capacity_slots=50,
+    )
+
+    assert raw_res["status"] in ("Optimal", "Feasible")
+    assert "SKU_STOCH" in solved_orders
+    assert solved_orders["SKU_STOCH"][0] > 0
+

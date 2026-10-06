@@ -149,3 +149,62 @@ def run_monitoring_pipeline(
 
     print(f"Monitoring report saved to {out_p} (Status: {report['status']})")
     return report
+
+
+def calculate_population_stability_index(
+    reference: np.ndarray | list[float],
+    current: np.ndarray | list[float],
+    num_bins: int = 10,
+    epsilon: float = 1e-4,
+) -> float:
+    """Calculate Population Stability Index (PSI) between reference baseline and incoming current distribution."""
+    ref = np.asarray(reference, dtype=float)
+    cur = np.asarray(current, dtype=float)
+
+    if len(ref) == 0 or len(cur) == 0:
+        return 0.0
+
+    # Quantile bin edges based on reference distribution
+    quantiles = np.linspace(0, 100, num_bins + 1)
+    bin_edges = np.percentile(ref, quantiles)
+    bin_edges[0] = -np.inf
+    bin_edges[-1] = np.inf
+
+    ref_counts, _ = np.histogram(ref, bins=bin_edges)
+    cur_counts, _ = np.histogram(cur, bins=bin_edges)
+
+    ref_pct = (ref_counts + epsilon) / (len(ref) + epsilon * num_bins)
+    cur_pct = (cur_counts + epsilon) / (len(cur) + epsilon * num_bins)
+
+    psi_val = np.sum((cur_pct - ref_pct) * np.log(cur_pct / ref_pct))
+    return float(max(0.0, psi_val))
+
+
+def compute_distribution_drift(
+    reference_df: pd.DataFrame,
+    current_df: pd.DataFrame,
+    column: str = "units_sold",
+) -> dict[str, Any]:
+    """Compute PSI drift score and classification between reference and incoming batch."""
+    if column not in reference_df or column not in current_df:
+        return {"status": "ERROR", "message": f"Column {column} missing in comparison dataframes."}
+
+    ref_vals = reference_df[column].to_numpy(dtype=float)
+    cur_vals = current_df[column].to_numpy(dtype=float)
+
+    psi = calculate_population_stability_index(ref_vals, cur_vals)
+
+    if psi < 0.10:
+        drift_level = "NO_DRIFT"
+    elif psi < 0.25:
+        drift_level = "MODERATE_DRIFT"
+    else:
+        drift_level = "SIGNIFICANT_DRIFT"
+
+    return {
+        "metric": "PSI",
+        "psi_score": float(round(psi, 4)),
+        "drift_level": drift_level,
+        "sample_sizes": {"reference": len(ref_vals), "current": len(cur_vals)},
+    }
+

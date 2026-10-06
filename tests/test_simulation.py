@@ -54,3 +54,30 @@ def test_simulation_step_timing_and_lost_sales():
     assert res_2.ending_incoming == 0
     # Costs: purchase = 0, holding = 4 * 0.02 = 0.08, unmet = 0 -> total 0.08
     assert abs(res_2.holding_cost_scu - 0.08) < 1e-6
+
+
+def test_stochastic_pipeline_simulation():
+    """Verify stochastic pipeline simulation tracks multi-week arrivals accurately."""
+    from demandguard.simulation import step_product_inventory_stochastic_pipeline
+
+    state = ProductInventoryState(
+        sku_id="SKU_PIPE",
+        on_hand_units=10,
+        incoming_week_1_units=5,
+    )
+    pipeline = [5, 10]  # 5 arriving W1, 10 arriving W2
+
+    new_st, new_pipe, res = step_product_inventory_stochastic_pipeline(
+        state=state,
+        placed_order_q1=15,
+        realized_demand=8,
+        week_start="2011-01-03",
+        pipeline_arrivals=pipeline,
+    )
+
+    assert res.received_shipment == 5
+    assert res.on_hand_after_receipt == 15
+    assert res.realized_sales == 8
+    assert res.ending_on_hand == 7
+    assert new_pipe == [10, 15]
+

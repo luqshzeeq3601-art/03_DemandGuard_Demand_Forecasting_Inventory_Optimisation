@@ -49,3 +49,17 @@ def test_p0_budget_and_arrival_capacity_limits():
     )
     assert orders_cap["SKU_A"] == 10
     assert orders_cap["SKU_B"] == 0
+
+
+def test_quantile_spread_safety_stock():
+    """Verify dynamic safety stock scales with quantile spread."""
+    from demandguard.policies import compute_quantile_spread_safety_stock
+
+    # Tighter spread -> lower safety stock
+    ss_low = compute_quantile_spread_safety_stock(p10_forecast=90.0, p90_forecast=110.0)
+    # Wider spread -> higher safety stock
+    ss_high = compute_quantile_spread_safety_stock(p10_forecast=50.0, p90_forecast=150.0)
+
+    assert ss_low > 0
+    assert ss_high > ss_low
+

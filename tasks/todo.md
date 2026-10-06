@@ -151,3 +151,65 @@
   - Read: full validation/release gate; operations; progress log.
 
 **Final checkpoint G7:** local implementation is complete when T01-T18 and mandatory requirements are verified. Dashboard, cloud hosting, new datasets and public publishing remain separate follow-ups.
+
+## 7. v0.2 Improvement Tasks (T19–T30)
+
+- [x] **T19 — Implement Tobit demand unbiasing and cold start priors**
+  - Acceptance: latent demand unbiasing for stockout weeks implemented; category cold start priors generated.
+  - Verify: `tests/test_data.py::test_estimate_censored_demand`, `test_compute_cold_start_priors` pass.
+  - Files: `src/demandguard/data.py`, `tests/test_data.py`.
+
+- [x] **T20 — Add annual seasonality, Fourier harmonics, and recency weights**
+  - Acceptance: lag-52, rolling-52, Fourier terms ($\sin/\cos$), momentum ratios, and sample weights added.
+  - Verify: `tests/test_features.py` passes without chronological leakage.
+  - Files: `src/demandguard/features.py`, `tests/test_features.py`.
+
+- [x] **T21 — Implement multi-quantile LightGBM and Tweedie regressors**
+  - Acceptance: $P10, P50, P90$ pinball loss models trained with verified monotonic predictions ($P10 \le P50 \le P90$).
+  - Verify: `tests/test_model.py::test_probabilistic_model_monotonicity` passes.
+  - Files: `src/demandguard/model.py`, `tests/test_model.py`.
+
+- [x] **T22 — Implement adaptive online bias correction and hybrid ensembling**
+  - Acceptance: dynamic ratio tracking ($\beta_t$) and hybrid forecast blending with B2 baseline.
+  - Verify: `tests/test_model.py::test_hybrid_adaptive_forecaster` passes.
+  - Files: `src/demandguard/model.py`, `tests/test_model.py`.
+
+- [x] **T23 — Implement multi-season 4-fold cross-validation scheme**
+  - Acceptance: 4 distinct seasonal folds (Spring, Summer, Fall, Holiday Peak) generated for multi-year tuning.
+  - Verify: `tests/test_splits.py` passes.
+  - Files: `src/demandguard/splits.py`, `tests/test_splits.py`.
+
+- [x] **T24 — Implement stochastic MILP inventory optimization**
+  - Acceptance: expected cost minimization across quantile demand realizations with zero budget/capacity breaches.
+  - Verify: `tests/test_inventory.py::test_stochastic_inventory_milp` passes.
+  - Files: `src/demandguard/inventory.py`, `tests/test_inventory.py`.
+
+- [x] **T25 — Deliver dynamic quantile-spread safety stock policy**
+  - Acceptance: safety stock buffer scales dynamically with forecast variance ($SS_{it} \propto P90 - P10$).
+  - Verify: `tests/test_policies.py::test_quantile_spread_safety_stock` passes.
+  - Files: `src/demandguard/policies.py`, `tests/test_policies.py`.
+
+- [x] **T26 — Implement stochastic lead-time inventory simulation harness**
+  - Acceptance: multi-period order pipeline queue and stochastic arrivals tracked accurately.
+  - Verify: `tests/test_simulation.py::test_stochastic_pipeline_simulation` passes.
+  - Files: `src/demandguard/simulation.py`, `tests/test_simulation.py`.
+
+- [x] **T27 — Deliver asynchronous API job queue and polling endpoints**
+  - Acceptance: non-blocking `POST /reorder/async` and `GET /jobs/{id}` endpoints.
+  - Verify: `tests/test_api.py::test_api_async_reorder` passes.
+  - Files: `src/demandguard/api.py`, `tests/test_api.py`.
+
+- [x] **T28 — Implement Population Stability Index (PSI) and distribution drift monitoring**
+  - Acceptance: PSI score and drift classification calculated for incoming transaction streams.
+  - Verify: `tests/test_monitoring.py::test_psi_drift_detection` passes.
+  - Files: `src/demandguard/monitoring.py`, `tests/test_monitoring.py`.
+
+- [x] **T29 — Expand comprehensive test suite and verify 100% pass rate**
+  - Acceptance: 41 unit and integration tests passing across all modules; zero Ruff linting errors.
+  - Verify: `pytest` (41/41 passing), `ruff check` (clean).
+  - Files: `tests/`.
+
+- [x] **T30 — Update documentation, progress log, decisions log, and git commit**
+  - Acceptance: D17 logged, progress log synchronized, comprehensive improvement plan delivered.
+  - Verify: `docs/09_DECISIONS_LOG.md`, `docs/10_PROGRESS_LOG.md`, `tasks/todo.md`.
+

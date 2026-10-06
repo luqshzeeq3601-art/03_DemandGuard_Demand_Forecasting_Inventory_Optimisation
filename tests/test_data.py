@@ -202,3 +202,35 @@ def test_prepare_weekly_panel_monday_boundaries(tmp_path):
     ]
     assert len(sku_b_w2) == 1
     assert sku_b_w2["units_sold"].iloc[0] == 25
+
+
+def test_estimate_censored_demand():
+    """Verify Tobit unbiasing flags stockouts and imputes latent demand."""
+    from demandguard.data import estimate_censored_demand
+
+    panel = pd.DataFrame(
+        [
+            {"sku_id": "SKU_1", "week_start": "2020-01-06", "units_sold": 50},
+            {"sku_id": "SKU_1", "week_start": "2020-01-13", "units_sold": 60},
+            {"sku_id": "SKU_1", "week_start": "2020-01-20", "units_sold": 0},  # Censored stockout
+            {"sku_id": "SKU_1", "week_start": "2020-01-27", "units_sold": 55},
+            {"sku_id": "SKU_1", "week_start": "2020-02-03", "units_sold": 45},
+        ]
+    )
+    result = estimate_censored_demand(panel, min_history_weeks=3)
+    assert "unbiased_demand" in result.columns
+    assert "is_censored" in result.columns
+    censored_row = result[result["week_start"] == "2020-01-20"].iloc[0]
+    assert censored_row["is_censored"] is True or censored_row["is_censored"] == 1
+    assert censored_row["unbiased_demand"] > 0
+
+
+def test_compute_cold_start_priors():
+    """Verify cold start priors extraction."""
+    from demandguard.data import compute_cold_start_priors
+
+    df = pd.DataFrame([{"quantity": 10}, {"quantity": 20}, {"quantity": 30}])
+    priors = compute_cold_start_priors(df)
+    assert "global" in priors
+    assert priors["global"]["mean_weekly_units"] == 20.0
+

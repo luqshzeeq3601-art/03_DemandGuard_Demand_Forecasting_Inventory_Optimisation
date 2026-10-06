@@ -24,6 +24,8 @@ Record material decisions before changing their specifications or implementation
 | D14 | Enforce physical fulfilment using a binary stockout flag | Safety/terminal incentives must not invent unmet demand while keeping the same product in stock | 06_INVENTORY_OPTIMISATION.md |
 | D15 | Advance frozen ARIMA filtering state, never refit on the holdout | Forecasts at later origins must condition on observed history without changing fitted coefficients | 04_TECHNICAL_DESIGN.md; 05_FORECAST_EXPERIMENT_PLAN.md |
 | D16 | Note selection rule tolerance: `M1_lgb_deep` vs `M1_lgb_fast` | `M1_lgb_deep` (0.6200 WAPE) and `M1_lgb_fast` (0.6206 WAPE) differ by 0.09% (<1.0% tolerance). `M1_lgb_deep` was selected for marginal absolute error minimisation, but `M1_lgb_fast` remains the canonical simpler/faster model under the strict 1% rule | 05_FORECAST_EXPERIMENT_PLAN.md; docs/MODEL_CARD.md |
+| D17 | v0.2 Probabilistic & Stochastic Engine Architecture | Implemented multi-quantile LightGBM (P10/P50/P90), Tweedie regression, 52-week lag & Fourier seasonality, online bias correction, stochastic MILP expected-cost solver, dynamic quantile-spread safety stock, and async API serving | 05_FORECAST_EXPERIMENT_PLAN.md; 06_INVENTORY_OPTIMISATION.md; demandguard_comprehensive_improvement_plan.md |
+
 
 ## 3. Verified runtime and data assumptions (Status: CLOSED)
 
