@@ -7,10 +7,10 @@
 ### Validation Metrics Table
 | Model ID | Pooled WAPE | MAE | Signed Bias | Total Actual Units | Abs Error Units |
 | --- | --- | --- | --- | --- | --- |
-| `M1_lgb_deep` | 0.6200 | 205.02 | -0.0253 | 158,724 | 98,411.5 |
-| `M1_lgb_fast` | 0.6206 | 205.20 | -0.0236 | 158,724 | 98,496.5 |
-| `M1_lgb_default` | 0.6246 | 206.56 | -0.0436 | 158,724 | 99,146.5 |
-| `M1_lgb_small` | 0.6369 | 210.59 | +0.0250 | 158,724 | 101,084.1 |
+| `M1_lgb_deep` | 0.6320 | 208.99 | +0.0009 | 158,724 | 100,313.0 |
+| `M1_lgb_default` | 0.6334 | 209.46 | -0.0214 | 158,724 | 100,539.0 |
+| `M1_lgb_small` | 0.6421 | 212.32 | +0.0366 | 158,724 | 101,912.5 |
+| `M1_lgb_fast` | 0.6450 | 213.29 | +0.0120 | 158,724 | 102,380.3 |
 | `B2` | 0.6722 | 222.27 | +0.0237 | 158,724 | 106,687.5 |
 | `B1` | 0.7250 | 239.75 | -0.0564 | 158,724 | 115,082.0 |
 | `B4_arima_111` | 0.7344 | 242.85 | +0.1893 | 158,724 | 116,569.9 |
@@ -19,8 +19,8 @@
 
 ## 2. Champion Selection
 - **Selected Champion**: `M1_lgb_deep`
-- **Rationale**: Lowest pooled validation WAPE (0.6200).
-- **Validation WAPE**: `0.6200`
+- **Rationale**: Lowest pooled validation WAPE (0.6320).
+- **Validation WAPE**: `0.6320`
 - **Chosen Safety Stock Factor ($k$)**: `1.0`
 - **Selection Tolerance Note (Decision D16)**: `M1_lgb_deep` (0.6200) and `M1_lgb_fast` (0.6206) differ by 0.09% (<1.0% tolerance). `M1_lgb_fast` represents the canonical simpler/faster model under the 1% simplicity rule.
 
@@ -29,8 +29,8 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | `B2` | 0.5777 | 250.67 | -0.1523 | 156,206 | 90,241.5 | Beat ML by 18.7% lower error |
 | `B4` | 0.6423 | 278.68 | +0.0232 | 156,206 | 100,326.4 | Baseline |
+| `CHAMPION_M1_lgb_deep` | 0.6506 | 282.30 | -0.3053 | 156,206 | 101,627.5 | Lost on holdout (-27.4% bias) |
 | `B1` | 0.7090 | 307.64 | -0.0598 | 156,206 | 110,750.0 | Baseline |
-| `CHAMPION_M1_lgb_deep` | 0.7107 | 308.37 | -0.2736 | 156,206 | 111,012.6 | Lost on holdout (-27.4% bias) |
 | `B3` | 1.0693 | 463.97 | +0.5044 | 156,206 | 167,029.0 | Baseline |
 
 ## 4. Feature Ablation Study (Validation Folds)

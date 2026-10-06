@@ -10,6 +10,7 @@
     "lag_12",
     "lag_25",
     "lag_51",
+    "lag_52",
     "rolling_mean_4",
     "rolling_std_4",
     "zero_fraction_4",
@@ -19,11 +20,17 @@
     "rolling_mean_26",
     "rolling_std_26",
     "zero_fraction_26",
+    "rolling_mean_52",
     "trend_4_4",
+    "momentum_4_13",
     "origin_week_of_year",
     "origin_month",
     "target_week_of_year",
     "target_month",
+    "sin_woy_orig",
+    "cos_woy_orig",
+    "sin_woy_tgt",
+    "cos_woy_tgt",
     "horizon",
     "sku_id"
   ],
@@ -74,8 +81,8 @@
     "verbose": -1
   },
   "champion_model_id": "M1_lgb_deep",
-  "selection_reason": "Lowest pooled validation WAPE (0.6200).",
-  "selection_validation_wape": 0.6200163989704603,
+  "selection_reason": "Lowest pooled validation WAPE (0.6320).",
+  "selection_validation_wape": 0.6319961635558023,
   "chosen_safety_stock_k": 1.0,
   "final_training_cutoff_date": "2011-09-05",
   "cohort_skus_count": 30,
@@ -111,5 +118,6 @@
     "21984",
     "22086"
   ],
-  "created_at_utc": "2026-10-05T18:29:44.178837+00:00"
+  "created_at_utc": "2026-10-06T06:56:12.507986+00:00",
+  "mlflow_run_id": "4e4926547249460da811d4eea1731075"
 }

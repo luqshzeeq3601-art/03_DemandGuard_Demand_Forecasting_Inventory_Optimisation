@@ -46,3 +46,9 @@ forecast:
   arima:
     candidate_orders: [[1, 1, 1], [1, 0, 0]]
     fallback: "B2"
+
+mlflow:
+  tracking_uri: "sqlite:///mlflow.db"
+  experiment_name: "DemandGuard_Forecasting"
+  enabled: true
+

@@ -10,8 +10,8 @@
 | Policy | Net Cost (SCU) | Fill Rate | Total Demand | Sales | Unmet Units | Purchase Spend | Holding Cost | Unmet Penalty | Breaches | Cost vs P0 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `P0_Rule` | 337,964.86 | 69.66% | 156,206 | 108,813 | 47,393 | 107,662.00 | 2,342.86 | 236,965.00 | 0 | Baseline |
-| `P1_MILP_Baseline` | 335,099.70 | 70.16% | 156,206 | 109,589 | 46,617 | 109,291.00 | 2,155.20 | 233,085.00 | 0 | -0.85% (-2,865.16 SCU) |
-| `P2_MILP_Champion` | 363,667.40 | 65.60% | 156,206 | 102,476 | 53,730 | 101,803.00 | 2,458.40 | 268,650.00 | 0 | +7.61% (+25,702.54 SCU) |
+| `P1_MILP_Baseline` | 340,215.08 | 68.05% | 156,206 | 106,297 | 49,909 | 90,145.00 | 2,029.58 | 249,545.00 | 0 | +0.67% (+2,250.22 SCU) |
+| `P2_MILP_Champion` | 355,391.66 | 66.79% | 156,206 | 104,334 | 51,872 | 102,621.00 | 2,134.66 | 259,360.00 | 0 | +5.16% (+17,426.80 SCU) |
 
 ## 3. Safety Stock Factor ($k$) Validation Search
 | Safety Factor ($k$) | Mean Validation Cost (SCU) | Mean Fill Rate | Capacity Breaches | Status |
@@ -35,8 +35,8 @@
 
 ## 5. Comparative Analysis & Key Findings
 1. **Cost & Service Trade-off**:
-   - **P1 (MILP + B2 forecast)**: 335,099.70 SCU, fill rate 70.16%; -0.85% vs P0 (337,964.86 SCU). The 5% O5 stretch target is **missed**.
-   - **P2 (MILP + ML forecast)**: 363,667.40 SCU, fill rate 65.60%. The champion under-forecast the Q4 ramp, raising unmet-demand penalties.
-2. **Unmet-demand penalties dominate**: on average 71% of net cost across policies, because the scenario budget is tight during the holiday ramp-up.
-3. **Solver status**: MILP solves stop at a proven 0.1% relative gap (decision D23); unproven solves place no orders. Unproven solves in this run: 0.
+   - **P1 (MILP + B2 forecast)**: 340,215.08 SCU, fill rate 68.05%; +0.67% vs P0 (337,964.86 SCU). The 5% O5 stretch target is **missed**.
+   - **P2 (MILP + ML forecast)**: 355,391.66 SCU, fill rate 66.79%. The champion under-forecast the Q4 ramp, raising unmet-demand penalties.
+2. **Unmet-demand penalties dominate**: on average 72% of net cost across policies, because the scenario budget is tight during the holiday ramp-up.
+3. **Solver status**: MILP solves stop at a proven 0.1% relative gap (decision D23); unproven solves place no orders. Unproven solves in this run: 2.
 4. **Physical feasibility**: capacity breaches across policies: 0.

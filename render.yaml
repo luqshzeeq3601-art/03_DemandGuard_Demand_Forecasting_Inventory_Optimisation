@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: demandguard-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000

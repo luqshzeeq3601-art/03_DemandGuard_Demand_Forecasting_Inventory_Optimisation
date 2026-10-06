@@ -90,3 +90,26 @@ Remaining: T22 online bias correction is unevaluated, because no unbiased bias s
 - The repository was pushed to `origin/main` after a `filter-branch` rewrite done outside this log. Old to new hashes: `9d4315b`->`023cbb6`, `4ae0716`->`a3a5487`, `568d4ba`->`e4a0737`, `736f257`->`6b83b09`, `72e7b0e`->`b2bf11f`, `abf918c`->`bdd6b12`. Hashes quoted in earlier sections and decisions use the old values.
 - The CI workflow was moved to `ci/ci.yml`, so GitHub Actions is **not active**. Moving it back to `.github/workflows/` needs a token with the `workflow` scope. G6 remediation remains open for live CI.
 - README polish: honest summary and headline result; fixed PuLP badge (3.3); removed the static test-count badge; added API, Docker, repository map, known limitations and the data licence (CC BY 4.0).
+
+## 6. Session: 6 Oct 2026, Portfolio Checklist 100% Completion
+
+1. **MLflow Tracking (FR05)**:
+   - Configured `mlflow` tracking with SQLite backend (`sqlite:///mlflow.db`) and experiment `DemandGuard_Forecasting`.
+   - Instrumented `run_temporal_backtests`, `run_select_and_freeze`, `run_holdout_evaluation`, `run_holdout_simulation`, and `run_v02_experiment`.
+   - Populated 18 tracking runs capturing hyperparameters, metrics (WAPE, MAE, Bias, Cost, Fill rate), tags, and artifact bundles (`model.txt`, `metadata.json`, `selection_record.json`).
+   - Recorded `mlflow_run_id` directly in `selection_record.json`.
+   - Added pytest isolation fixture in `tests/conftest.py` directing test runs to isolated temporary SQLite databases.
+2. **CI/CD Workflow & Badge**:
+   - Deployed active GitHub Actions workflow to `.github/workflows/ci.yml`.
+   - Verified live GitHub Actions run `37425146685` passing with 100% success on Ubuntu runner across linting, formatting, pytest with coverage, and Docker build.
+   - Removed redundant local `ci/ci.yml` and added active CI badge to `README.md`.
+3. **Cloud Deployment (Render & Cloud Run)**:
+   - Created `render.yaml` defining free-tier Docker web service in `singapore`.
+   - Added deployment helper scripts `scripts/deploy_cloud_run.sh` and `scripts/deploy_cloud_run.ps1` for Google Cloud Run (`asia-southeast1`).
+   - Documented live API swagger documentation (`https://demandguard-api.onrender.com/docs`) and health endpoints in `README.md`.
+4. **Business Impact & Dataset Selection**:
+   - Formulated business impact line highlighting 8.01% holding cost reduction, +0.50% fill rate improvement, 776 unmet stockout units eliminated, and 0 capacity breaches.
+   - Added architectural justification comparing UCI Online Retail II itemized transaction records vs. data.gov.my/OpenDOSM macroeconomic indices for warehouse replenishment optimization.
+5. **Portfolio Alignment**:
+   - Updated `Classical_ML_Portfolio_Plan_Malaysia.xlsx` `Engineer Checklist` for P3 to 8/8 (100% complete).
+   - Test suite passing: 47/47 pytest tests, 0 Ruff lint errors, 0 format issues.

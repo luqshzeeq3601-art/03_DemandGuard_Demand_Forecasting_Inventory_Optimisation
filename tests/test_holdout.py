@@ -41,3 +41,10 @@ def test_holdout_evaluation_structure():
     model_ids = [m["model_id"] for m in metrics]
     assert any("B2" in m for m in model_ids)
     assert any("CHAMPION" in m for m in model_ids)
+
+    # Verify MLflow tracking captured runs and metrics
+    import mlflow
+
+    runs = mlflow.search_runs(experiment_names=["DemandGuard_Forecasting"])
+    assert not runs.empty
+    assert "metrics.holdout_wape" in runs.columns

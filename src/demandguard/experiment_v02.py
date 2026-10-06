@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
@@ -15,6 +16,12 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 import yaml
+
+try:
+    os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
+    import mlflow
+except ImportError:
+    mlflow = None
 
 from demandguard.contracts import ProductInventoryInput
 from demandguard.evaluation import calculate_forecast_metrics
@@ -461,6 +468,46 @@ def run_v02_experiment(
     }
     if champion_id in bundles:
         bundles[champion_id].save_bundle(art, metadata={**record, "served_component": champion_id})
+
+    mlflow_cfg = cfg.get("mlflow", {})
+    if mlflow_cfg.get("enabled", False) and mlflow is not None:
+        try:
+            tracking_uri = os.environ.get("MLFLOW_TRACKING_URI") or str(
+                mlflow_cfg.get("tracking_uri", "sqlite:///mlflow.db")
+            )
+            exp_name = str(mlflow_cfg.get("experiment_name", "DemandGuard_Forecasting"))
+            mlflow.set_tracking_uri(tracking_uri)
+            mlflow.set_experiment(exp_name)
+            with mlflow.start_run(run_name=f"v02_Champion_Freeze_{champion_id}"):
+                mlflow.log_params(
+                    {
+                        "protocol": "D18",
+                        "champion_model_id": champion_id,
+                        "selection_reason": reason,
+                        "safety_stock_k": k_val,
+                        "final_training_cutoff_date": cutoff,
+                    }
+                )
+                mlflow.log_metrics(
+                    {
+                        "validation_wape": champ_val_wape,
+                        "b2_validation_wape": b2_val_wape,
+                        "relative_wape_reduction_vs_b2": (b2_val_wape - champ_val_wape)
+                        / b2_val_wape,
+                    }
+                )
+                mlflow.set_tags(
+                    {
+                        "stage": "v02_champion_freeze",
+                        "selection_reason": reason,
+                    }
+                )
+                for f_name in ["model.txt", "metadata.json", "selection_record.json"]:
+                    f_p = art / f_name
+                    if f_p.exists():
+                        mlflow.log_artifact(str(f_p))
+        except Exception as e:
+            print(f"Could not log v0.2 run to MLflow: {e}")
 
     # 4. EXPLORATORY test-window forecast scoring.
     print("Scoring test window (EXPLORATORY)...")

@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -14,12 +15,22 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import yaml
 
+try:
+    os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
+    os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
+    import mlflow
+except ImportError:
+    mlflow = None
+
 from demandguard.baselines import (
     forecast_b4_arima,
     generate_baseline_predictions_for_origin,
 )
 from demandguard.contracts import ProductInventoryInput
-from demandguard.features import build_feature_table
+from demandguard.features import (
+    build_feature_table,
+    extract_causal_features_for_series,
+)
 from demandguard.inventory import (
     solve_inventory_milp,
 )
@@ -72,7 +83,10 @@ def calculate_forecast_metrics(
     }
 
 
-def run_temporal_backtests(config_path: str = "config/project.yaml") -> dict[str, Any]:
+def run_temporal_backtests(
+    config_path: str = "config/project.yaml",
+    log_to_mlflow: bool = True,
+) -> dict[str, Any]:
     """Run full validation backtests across candidate models and folds."""
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
@@ -89,13 +103,20 @@ def run_temporal_backtests(config_path: str = "config/project.yaml") -> dict[str
     val_origins = splits["validation_origins"]
     panel_df = pd.read_parquet(weekly_sales_path)
 
-    # Ensure feature table exists
+    # Ensure feature table exists and has all required columns
     if not features_path.exists():
         feat_df = build_feature_table(panel_df, cohort_skus=cohort_skus)
         table = pa.Table.from_pandas(feat_df)
         pq.write_table(table, features_path)
     else:
         feat_df = pd.read_parquet(features_path)
+        from demandguard.model import NUMERIC_FEATURES
+
+        missing_feats = [f for f in NUMERIC_FEATURES if f not in feat_df.columns]
+        if missing_feats:
+            feat_df = build_feature_table(panel_df, cohort_skus=cohort_skus)
+            table = pa.Table.from_pandas(feat_df)
+            pq.write_table(table, features_path)
 
     # Define candidate configurations
     # B1, B2, B3, B4_100, B4_111, and 6 LightGBM configs (total <= 12 configs)
@@ -276,6 +297,51 @@ def run_temporal_backtests(config_path: str = "config/project.yaml") -> dict[str
     val_csv_path = rep_dir / "forecast_validation.csv"
     val_metrics_df.to_csv(val_csv_path, index=False)
 
+    mlflow_cfg = cfg.get("mlflow", {})
+    if log_to_mlflow and mlflow_cfg.get("enabled", False) and mlflow is not None:
+        tracking_uri = os.environ.get("MLFLOW_TRACKING_URI") or str(
+            mlflow_cfg.get("tracking_uri", "sqlite:///mlflow.db")
+        )
+        exp_name = str(mlflow_cfg.get("experiment_name", "DemandGuard_Forecasting"))
+        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment(exp_name)
+        for _, row in val_metrics_df.iterrows():
+            m_id = str(row["model_id"])
+            with mlflow.start_run(run_name=f"Backtest_{m_id}"):
+                mlflow.log_params(
+                    {
+                        "model_id": m_id,
+                        "folds_count": len(val_origins),
+                        "split": "validation",
+                    }
+                )
+                for l_cfg in lgb_configs:
+                    if l_cfg["model_id"] == m_id:
+                        mlflow.log_params(
+                            {
+                                "learning_rate": l_cfg["learning_rate"],
+                                "num_leaves": l_cfg["num_leaves"],
+                                "n_estimators": l_cfg["n_estimators"],
+                                "min_child_samples": l_cfg["min_child_samples"],
+                            }
+                        )
+                        break
+                mlflow.log_metrics(
+                    {
+                        "wape": float(row["wape"]) if pd.notna(row["wape"]) else 0.0,
+                        "mae": float(row["mae"]) if pd.notna(row["mae"]) else 0.0,
+                        "bias": float(row["bias"]) if pd.notna(row["bias"]) else 0.0,
+                        "total_actual": float(row["total_actual"]),
+                        "total_abs_error": float(row["total_abs_error"]),
+                    }
+                )
+                mlflow.set_tags(
+                    {
+                        "stage": "validation_backtest",
+                        "model_family": "lightgbm" if "lgb" in m_id else "baseline",
+                    }
+                )
+
     print("\n=== Validation Results Summary (Ranked by Pooled WAPE) ===")
     print(val_metrics_df.to_string(index=False))
 
@@ -288,6 +354,7 @@ def run_temporal_backtests(config_path: str = "config/project.yaml") -> dict[str
 def run_select_and_freeze(
     config_path: str = "config/project.yaml",
     scenario_path: str = "config/scenario.yaml",
+    log_to_mlflow: bool = True,
 ) -> dict[str, Any]:
     """Select champion model and safety stock k, train on c0 cutoff, and save frozen artifact."""
     with open(config_path, "r", encoding="utf-8") as f:
@@ -301,7 +368,7 @@ def run_select_and_freeze(
 
     if not val_csv_path.exists():
         print("Validation metrics not found. Running backtests first...")
-        run_temporal_backtests(config_path)
+        run_temporal_backtests(config_path, log_to_mlflow=log_to_mlflow)
 
     val_metrics_df = pd.read_csv(val_csv_path)
 
@@ -373,17 +440,60 @@ def run_select_and_freeze(
         )
         champion_model.fit(c0_train_df)
 
+    champ_val_wape = float(
+        val_metrics_df[val_metrics_df["model_id"] == champion_id]["wape"].iloc[0]
+    )
+
+    mlflow_run_id = None
+    mlflow_cfg = cfg.get("mlflow", {})
+    if log_to_mlflow and mlflow_cfg.get("enabled", False) and mlflow is not None:
+        tracking_uri = os.environ.get("MLFLOW_TRACKING_URI") or str(
+            mlflow_cfg.get("tracking_uri", "sqlite:///mlflow.db")
+        )
+        exp_name = str(mlflow_cfg.get("experiment_name", "DemandGuard_Forecasting"))
+        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment(exp_name)
+        with mlflow.start_run(run_name=f"Champion_Freeze_{champion_id}") as run:
+            mlflow_run_id = run.info.run_id
+            mlflow.log_params(
+                {
+                    "champion_model_id": champion_id,
+                    "chosen_safety_stock_k": chosen_k,
+                    "final_training_cutoff_date": final_cutoff_date,
+                    "cohort_skus_count": len(cohort_skus),
+                }
+            )
+            if champion_id.startswith("M1"):
+                mlflow.log_params(
+                    {
+                        "learning_rate": params.get("learning_rate"),
+                        "num_leaves": params.get("num_leaves"),
+                        "n_estimators": params.get("n_estimators"),
+                        "min_child_samples": params.get("min_child_samples"),
+                    }
+                )
+            mlflow.log_metrics(
+                {
+                    "selection_validation_wape": champ_val_wape,
+                }
+            )
+            mlflow.set_tags(
+                {
+                    "stage": "champion_freeze",
+                    "selection_reason": selection_reason,
+                }
+            )
+
     metadata = {
         "champion_model_id": champion_id,
         "selection_reason": selection_reason,
-        "selection_validation_wape": float(
-            val_metrics_df[val_metrics_df["model_id"] == champion_id]["wape"].iloc[0]
-        ),
+        "selection_validation_wape": champ_val_wape,
         "chosen_safety_stock_k": chosen_k,
         "final_training_cutoff_date": final_cutoff_date,
         "cohort_skus_count": len(cohort_skus),
         "cohort_skus": cohort_skus,
         "created_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "mlflow_run_id": mlflow_run_id,
     }
     champion_model.save_bundle(art_dir, metadata=metadata)
 
@@ -392,6 +502,16 @@ def run_select_and_freeze(
     with open(selection_record_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
 
+    if mlflow_run_id is not None and mlflow is not None:
+        try:
+            with mlflow.start_run(run_id=mlflow_run_id):
+                for art_file in ["model.txt", "metadata.json", "selection_record.json"]:
+                    art_file_path = art_dir / art_file
+                    if art_file_path.exists():
+                        mlflow.log_artifact(str(art_file_path))
+        except Exception as e:
+            logger.warning(f"Could not log artifacts to MLflow: {e}")
+
     print(f"Selection record written to {selection_record_path}")
     return metadata
 
@@ -399,6 +519,7 @@ def run_select_and_freeze(
 def run_holdout_evaluation(
     config_path: str = "config/project.yaml",
     scenario_path: str = "config/scenario.yaml",
+    log_to_mlflow: bool = True,
 ) -> dict[str, Any]:
     """Evaluate frozen champion and baselines on final test holdout (3 origins, 12 weeks)."""
     selection_record_path = Path("artifacts/champion/selection_record.json")
@@ -515,6 +636,42 @@ def run_holdout_evaluation(
     test_csv_path = rep_dir / "holdout_forecast_metrics.csv"
     test_metrics_df.to_csv(test_csv_path, index=False)
 
+    mlflow_cfg = cfg.get("mlflow", {})
+    if log_to_mlflow and mlflow_cfg.get("enabled", False) and mlflow is not None:
+        tracking_uri = os.environ.get("MLFLOW_TRACKING_URI") or str(
+            mlflow_cfg.get("tracking_uri", "sqlite:///mlflow.db")
+        )
+        exp_name = str(mlflow_cfg.get("experiment_name", "DemandGuard_Forecasting"))
+        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment(exp_name)
+        for _, row in test_metrics_df.iterrows():
+            m_id = str(row["model_id"])
+            with mlflow.start_run(run_name=f"Holdout_{m_id}"):
+                mlflow.log_params(
+                    {
+                        "model_id": m_id,
+                        "split": "test_holdout",
+                        "test_origins_count": len(test_origins),
+                    }
+                )
+                mlflow.log_metrics(
+                    {
+                        "holdout_wape": float(row["wape"]) if pd.notna(row["wape"]) else 0.0,
+                        "holdout_mae": float(row["mae"]) if pd.notna(row["mae"]) else 0.0,
+                        "holdout_bias": float(row["bias"]) if pd.notna(row["bias"]) else 0.0,
+                        "total_actual": float(row["total_actual"]),
+                        "total_abs_error": float(row["total_abs_error"]),
+                    }
+                )
+                mlflow.set_tags(
+                    {
+                        "stage": "holdout_evaluation",
+                        "model_family": "lightgbm"
+                        if "lgb" in m_id or m_id == "champion"
+                        else "baseline",
+                    }
+                )
+
     print("\n=== Final Holdout Forecast Metrics ===")
     print(test_metrics_df.to_string(index=False))
 
@@ -524,6 +681,7 @@ def run_holdout_evaluation(
 def run_holdout_simulation(
     config_path: str = "config/project.yaml",
     scenario_path: str = "config/scenario.yaml",
+    log_to_mlflow: bool = True,
 ) -> dict[str, Any]:
     """Execute continuous 12-week inventory simulation on test holdout comparing P0, P1, and P2."""
     with open(config_path, "r", encoding="utf-8") as f:
@@ -610,7 +768,6 @@ def run_holdout_simulation(
     for w_idx, current_week_str in enumerate(holdout_weeks):
         current_week_date = pd.to_datetime(current_week_str).date()
         prior_closed_week_date = current_week_date - datetime.timedelta(weeks=1)
-        prior_closed_week_str = str(prior_closed_week_date)
 
         # 1. Realised proxy demand for each SKU in current week
         realized_demands = {
@@ -644,10 +801,6 @@ def run_holdout_simulation(
         )
 
         # P1 Forecasts (B2 trailing mean) and P2 Forecasts (Champion model)
-        # 4 target weeks
-        target_weeks_4 = [
-            str(current_week_date + datetime.timedelta(weeks=h - 1)) for h in range(1, 5)
-        ]
         p1_fc_matrix = {sku: [trailing_4_means[sku]] * 4 for sku in cohort_skus}
 
         # Extract features for P2 from observed history up to prior closed week
@@ -655,33 +808,12 @@ def run_holdout_simulation(
         for sku in cohort_skus:
             sku_sub = hist_up_to_prior[hist_up_to_prior["sku_id"] == sku]["units_sold"].values
             for h in range(1, 5):
-                f_dict = {
-                    "sku_id": sku,
-                    "origin_week_start": prior_closed_week_str,
-                    "horizon": h,
-                    "target_week_start": target_weeks_4[h - 1],
-                }
-                # Lags from prior closed week
-                for off in [0, 1, 2, 3, 7, 12, 25, 51]:
-                    idx = -(off + 1)
-                    f_dict[f"lag_{off}"] = float(sku_sub[idx]) if abs(idx) <= len(sku_sub) else 0.0
-                for rw in [4, 13, 26]:
-                    r_sub = sku_sub[-rw:]
-                    f_dict[f"rolling_mean_{rw}"] = float(np.mean(r_sub))
-                    f_dict[f"rolling_std_{rw}"] = (
-                        float(np.std(r_sub, ddof=1)) if len(r_sub) > 1 else 0.0
-                    )
-                    f_dict[f"zero_fraction_{rw}"] = float(np.mean(r_sub == 0))
-                f_dict["trend_4_4"] = (
-                    float(np.mean(sku_sub[-4:]) - np.mean(sku_sub[-8:-4]))
-                    if len(sku_sub) >= 8
-                    else 0.0
+                f_dict = extract_causal_features_for_series(
+                    sales_array=sku_sub,
+                    origin_date=prior_closed_week_date,
+                    horizon=h,
+                    sku_id=sku,
                 )
-                tgt_d = pd.to_datetime(target_weeks_4[h - 1]).date()
-                f_dict["origin_week_of_year"] = prior_closed_week_date.isocalendar()[1]
-                f_dict["origin_month"] = prior_closed_week_date.month
-                f_dict["target_week_of_year"] = tgt_d.isocalendar()[1]
-                f_dict["target_month"] = tgt_d.month
                 p2_feats.append(f_dict)
 
         p2_feat_df = pd.DataFrame(p2_feats)
@@ -801,6 +933,40 @@ def run_holdout_simulation(
     rep_dir.mkdir(parents=True, exist_ok=True)
     summary_csv = rep_dir / "holdout_simulation_metrics.csv"
     summary_df.to_csv(summary_csv, index=False)
+
+    mlflow_cfg = cfg.get("mlflow", {})
+    if log_to_mlflow and mlflow_cfg.get("enabled", False) and mlflow is not None:
+        tracking_uri = os.environ.get("MLFLOW_TRACKING_URI") or str(
+            mlflow_cfg.get("tracking_uri", "sqlite:///mlflow.db")
+        )
+        exp_name = str(mlflow_cfg.get("experiment_name", "DemandGuard_Forecasting"))
+        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment(exp_name)
+        for _, row in summary_df.iterrows():
+            pol_id = str(row["policy"])
+            with mlflow.start_run(run_name=f"Simulation_{pol_id}"):
+                mlflow.log_params(
+                    {
+                        "policy": pol_id,
+                        "weeks": len(holdout_weeks),
+                        "weekly_budget": weekly_budget,
+                        "warehouse_capacity": warehouse_capacity,
+                    }
+                )
+                mlflow.log_metrics(
+                    {
+                        "net_realized_cost_scu": float(row["net_realized_cost_scu"]),
+                        "fill_rate": float(row["fill_rate"]),
+                        "total_unmet_units": float(row["total_unmet_units"]),
+                        "capacity_breaches": float(row["capacity_breaches"]),
+                        "total_holding_cost_scu": float(row["total_holding_cost_scu"]),
+                    }
+                )
+                mlflow.set_tags(
+                    {
+                        "stage": "inventory_simulation",
+                    }
+                )
 
     print("\n=== Final Holdout Inventory Simulation Outcomes (12 Weeks) ===")
     print(summary_df.to_string(index=False))
