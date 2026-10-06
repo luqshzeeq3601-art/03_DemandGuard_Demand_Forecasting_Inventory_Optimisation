@@ -1,0 +1,39 @@
+{
+  "evidence_id": "committed-artifact-reconciliation-2026-10-06",
+  "basis": "Saved committed CSVs and the currently packaged model; no training, selection or new holdout access.",
+  "model_label_limitation": "D21: M1_lgb_deep is a legacy label; the artifact uses the default refit parameters in metadata.",
+  "artifact_parameters": {
+    "objective": "regression",
+    "metric": "l2",
+    "learning_rate": 0.05,
+    "num_leaves": 31,
+    "n_estimators": 80,
+    "min_child_samples": 10,
+    "random_state": 42,
+    "n_jobs": -1,
+    "verbose": -1
+  },
+  "artifact_mlflow_run_id": "4e4926547249460da811d4eea1731075",
+  "validation_gain_relative": 0.059749651419039984,
+  "holdout_ml_wape": 0.6505991116448194,
+  "holdout_b2_wape": 0.5777082826523949,
+  "p1_cost_change_relative": 0.00665814783229246,
+  "p1_fill_rate": 0.6804924266673495,
+  "p1_solver_failures": 2,
+  "independent_checks": [
+    "WAPE/error-total reconciliation",
+    "inventory unit balance",
+    "cost component reconciliation",
+    "fill-rate denominator"
+  ],
+  "files": {
+    "reports/forecast_validation.csv": "522f9dd52c134f605944bfefd55aba245b95770edd9936cefabce737d0ad832d",
+    "reports/holdout_forecast_metrics.csv": "2fbd1b4aa99d63bd8e4f88cbfc386a55fdb9029ea28828fd004f00f1b5a82e85",
+    "reports/holdout_simulation_metrics.csv": "14465fb22e8451aabfc6aa98ddaa333fd2ac9ed68ff759f1e18ca6df947b736c",
+    "artifacts/champion/model.txt": "b430086b9d8263956ad7b924b628a9b645eecdc25b3513f637865b159c9dda02",
+    "artifacts/champion/metadata.json": "12288ed3dce456112eb772c9499019962461eaf8589d7fd8073072b63b0cba2c",
+    "artifacts/champion/selection_record.json": "3c05cfed78e5e7beb8bd4a4e4094ba72c9c15f4966a84c44daa65f60e4cde218",
+    "config/project.yaml": "5adbc721f99a1759f74a7f89cd26798c92a5abc7cc369fcc41117bd721025c4e",
+    "config/scenario.yaml": "389dc39627784726c33c55cdf739aa73e1fffc288e8b5b622a7fc61f96bf5579"
+  }
+}

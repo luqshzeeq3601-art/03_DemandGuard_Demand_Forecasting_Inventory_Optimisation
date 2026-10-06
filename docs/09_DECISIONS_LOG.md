@@ -52,3 +52,8 @@ Alternatives and trade-off:
 Affected specifications/tasks:
 Verification or follow-up:
 ```
+
+
+## 6 October 2026: remediation evidence decision
+
+Preserve the original models and evaluation records. Repairs address packaging, evidence generation or display without retuning against viewed outcomes. Reporting regression reproduces and removes stale hard-coded scores. Current CSV summaries reconcile independently for WAPE, unit balance, cost components and fill rate. Reports/plots and current README/model-card section use the evidence manifest. Earlier stress/v0.2 runs remain historical. D21 legacy refit defect and missed O3/O5 remain disclosed. Runtime smoke CI prepared; local Docker/public 404 repair pending.

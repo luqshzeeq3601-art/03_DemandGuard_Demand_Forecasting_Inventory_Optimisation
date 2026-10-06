@@ -21,6 +21,9 @@
 | $k = 1.645$ | 57,025.80 | 84.69% | 0 | Candidate |
 
 ## 4. Budget Stress Scenarios ($0.6\times, 1.0\times, 1.4\times$)
+
+These are separately recorded stress runs. Their 1.0x row is not the source of the current main-holdout headline; solver timing and run provenance differ.
+
 | Budget Multiplier | Policy | Weekly Budget (SCU) | Net Cost (SCU) | Fill Rate | Unmet Units | Breaches | Unproven Solves |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **0.6x** | `P0_Rule` | 5,744 | 463,629.72 | 48.94% | 79,760 | 0 | 0 |

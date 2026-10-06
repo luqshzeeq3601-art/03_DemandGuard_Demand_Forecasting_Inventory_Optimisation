@@ -113,3 +113,23 @@ Remaining: T22 online bias correction is unevaluated, because no unbiased bias s
 5. **Portfolio Alignment**:
    - Updated `Classical_ML_Portfolio_Plan_Malaysia.xlsx` `Engineer Checklist` for P3 to 8/8 (100% complete).
    - Test suite passing: 47/47 pytest tests, 0 Ruff lint errors, 0 format issues.
+
+
+## 6 October 2026: portfolio remediation execution
+
+Reporting regression reproduces and removes stale hard-coded scores. Current CSV summaries reconcile independently for WAPE, unit balance, cost components and fill rate. Reports/plots and current README/model-card section use the evidence manifest. Earlier stress/v0.2 runs remain historical. D21 legacy refit defect and missed O3/O5 remain disclosed. Runtime smoke CI prepared; local Docker/public 404 repair pending.
+
+Evidence: local branch fix/portfolio-remediation; preserved originals and receipts under the workspace .portfolio-audit/2026-10-06/remediation folder. No remote push, merge, external post or cloud deployment was performed.
+
+
+### Container verification completed: 6 October 2026
+
+The repaired Linux image built, started, passed readiness and its functional inference/reorder/recommendation checks. Only task-owned containers were removed, and original model mounts were read-only. This supersedes the earlier local-Docker pending note. Candidate GitHub execution and public hosting remain pending. Evidence: workspace .portfolio-audit/2026-10-06/remediation/docker.
+
+## 6 October 2026: public README and workflow-image polish
+
+User-authorized work: polish the public README and generate a useful modern light-theme workflow image. README now leads with purpose, the diagram, traceable measured results, runnable setup/demo commands, API or CLI interfaces, verification, limitations and data/license boundaries. Removed stale live-service claims, machine-specific setup paths and unavailable public evidence links. Added docs/assets/workflow.png and its reviewed generation prompt in docs/assets/workflow.md.
+
+Verification: README/asset links resolve to public files; high-confidence publication signature/path checks found no issue; source-only exports passed the documented demo checks. Rendered previews load their images on a white background with no page overflow. A separate read-only review checked source/diagram consistency and identified the portable Windows-marker/test-prerequisite corrections, which are included where applicable. FraudGuard's full synthetic preparation and 50 tests passed in a disposable export. Original trained models, source data and frozen evaluation figures are unchanged.
+
+Earlier remediation commit and GitHub workflow proof is available in PR 1; this documentation commit is authorized for the same branch and draft PR. Final candidate CI status is recorded by the PR checks. Public hosting remains open for projects 1–5; ExperimentGuard does not require model serving in V1. No merge or cloud deployment is included. Next public-delivery task: confirm provider/account/artifact inputs, then verify actual public endpoints.
